@@ -1,0 +1,4 @@
+-- BuildTrack Supabase Schema
+-- This file is for reference. The canonical migrations are applied via Supabase MCP.
+-- Run migrations in order: 001 → 002 → 003 → 004 → 005
+-- See supabase/migrations/ directory for individual files.
