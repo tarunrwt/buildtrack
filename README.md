@@ -86,34 +86,6 @@ Each prompt is written in the form it was actually submitted. The key skill bein
 
 ---
 
-**Prompt 6 — Targeted Bug Fixes**
-
-> *"Three specific issues need to be resolved. First, the Sign Out button is completely non-functional — clicking it does nothing. Second, the Photos tab and the Stages tab are not displaying the content they should — I have attached screenshots showing exactly what these screens should contain. Third, the PDF Report and Excel Report download buttons are present but do not trigger any action. Please fix all three."*
-
-**Intent:** Targeted bug reports are most effective when they name the exact component, describe the exact failure, and provide visual evidence where available. Vague descriptions like "it's not working" produce slower and less accurate fixes than this format.
-
----
-
-### Phase 4 — Deployment
-
-**Prompt 7 — Repository and Deployment Setup**
-
-> *"Create a new GitHub repository called buildtrack under my account and push the complete project codebase to it. The repository should include a proper `.gitignore` that excludes `.env`, an `.env.example` file with placeholder variable names, a `vite.config.js`, and a `src/lib/supabase.js` file that initialises the Supabase client from environment variables. Initialise git, make the first commit, and provide the exact commands needed to push to GitHub."*
-
-**Intent:** Deployment and repository setup prompts should specify file hygiene requirements explicitly — particularly `.env` exclusion — since secrets committed to a public repository cannot be fully revoked.
-
----
-
-### Phase 5 — Documentation
-
-**Prompt 8 — README**
-
-> *"Write a professional GitHub README for BuildTrack that reflects the skills developed through building this project — vibe coding, AI prompt engineering, and full-stack development concepts. Include the prompts used at each stage of the project, written as polished, professional instructions rather than rough conversational notes, so that the README serves as both project documentation and a practical guide to the prompting methodology used."*
-
-**Intent:** Documentation that communicates learning intent and methodology, not just technical specifications. A README that explains how something was built is more valuable for a learning portfolio than one that only describes what was built.
-
----
-
 ## Tech Stack
 
 | Layer       | Technology                                        |
