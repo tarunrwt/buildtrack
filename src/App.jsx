@@ -33,6 +33,16 @@ const C = {
 
 const fmt = n => n >= 10000000 ? `₹${(n / 10000000).toFixed(1)}Cr` : n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${(n || 0).toLocaleString("en-IN")}`
 
+// Professional role label — applied only in Sidebar user card.
+// Stored Supabase values are never changed, only the display text.
+const formatRole = role => ({
+  admin:           "Admin",
+  project_manager: "Project Manager",
+  site_engineer:   "Site Engineer",
+  accountant:      "Accountant",
+  viewer:          "Viewer",
+}[role] || "Viewer")
+
 const downloadCSV = (reports) => {
   const headers = ["Project", "Floor", "Stage", "Date", "Weather", "Manpower", "Labor Cost", "Material Cost", "Equipment Cost", "Subcontractor Cost", "Other Cost", "Total Cost", "Remarks"]
   const rows = reports.map(r => [
@@ -247,7 +257,7 @@ const Sidebar = ({ page, setPage, user, userRole, onSignOut }) => (
         <div style={{ flex: 1, overflow: "hidden" }}>
           <p style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: "#E2E8F0", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.email?.split("@")[0] || "User"}</p>
           <p style={{ fontFamily: FONT, fontSize: 11, color: "#64748B", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {userRole ? userRole.replace(/_/g, " ") : user?.email}
+            {formatRole(userRole)}
           </p>
         </div>
       </div>
@@ -1418,7 +1428,8 @@ export default function App() {
   const [screen, setScreen] = useState("landing")
   const [page, setPage] = useState("dashboard")
   const [user, setUser] = useState(null)
-  const [userRole, setUserRole] = useState("viewer")  // fetched from DB, never from frontend
+  const [userRole, setUserRole] = useState("viewer")         // fetched from DB — never from frontend
+  const [assignedProjectIds, setAssignedProjectIds] = useState([]) // project UUIDs this user is assigned to
   const [projects, setProjects] = useState([])
   const [reports, setReports] = useState([])
   const [notifications, setNotifications] = useState([])
@@ -1437,11 +1448,19 @@ export default function App() {
     if (data?.role) setUserRole(data.role)
   }
 
+  // Fetch project IDs this user is assigned to (non-admin only).
+  // Uses the SECURITY DEFINER DB function to avoid RLS recursion.
+  const fetchAssignedProjects = async (role) => {
+    if (role === "admin") { setAssignedProjectIds([]); return }
+    const { data } = await supabase.rpc("get_assigned_project_ids")
+    setAssignedProjectIds(data || [])
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
-        fetchProfile(session.user.id)
+        fetchProfile(session.user.id).then(() => fetchAssignedProjects(userRole))
         setScreen("app")
       }
       setLoading(false)
@@ -1454,6 +1473,7 @@ export default function App() {
       } else {
         setUser(null)
         setUserRole("viewer")
+        setAssignedProjectIds([])
         setScreen("landing")
         setProjects([])
         setReports([])
@@ -1462,6 +1482,8 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // After role and assignments are loaded, fetch data scoped by RLS automatically.
+  // visibleProjects filters the UI dropdowns for non-admin users.
   useEffect(() => {
     if (!user) return
     const loadData = async () => {
@@ -1476,6 +1498,12 @@ export default function App() {
     }
     loadData()
   }, [user])
+
+  // Fetch assigned project IDs whenever role resolves (non-admin only)
+  useEffect(() => {
+    if (!user || !userRole || userRole === "viewer") return
+    fetchAssignedProjects(userRole)
+  }, [userRole])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -1498,15 +1526,21 @@ export default function App() {
   if (screen === "landing") return <Landing onLogin={() => setScreen("auth")} />
   if (screen === "auth") return <Auth onSuccess={(u) => { setUser(u); fetchProfile(u.id); setScreen("app") }} />
 
+  // Admin sees all projects. Non-admin sees only their assigned projects.
+  // RLS enforces this at the DB level too — this is a UI-layer complement.
+  const visibleProjects = userRole === "admin"
+    ? projects
+    : projects.filter(p => assignedProjectIds.includes(p.id))
+
   const sharedProps = { notifications, onMarkAllRead: handleMarkAllRead }
 
   const PAGES = {
-    dashboard:    <Dashboard user={user} setPage={setPage} projects={projects} reports={reports} />,
-    projects:     <Projects user={user} projects={projects} setProjects={setProjects} {...sharedProps} />,
-    "submit-dpr": <SubmitDPR user={user} projects={projects} setReports={setReports} {...sharedProps} />,
-    reports:      <Reports projects={projects} reports={reports} {...sharedProps} />,
-    materials:    <Materials user={user} projects={projects} {...sharedProps} />,
-    financials:   <Financials projects={projects} reports={reports} {...sharedProps} />,
+    dashboard:    <Dashboard user={user} setPage={setPage} projects={visibleProjects} reports={reports} />,
+    projects:     <Projects user={user} projects={visibleProjects} setProjects={setProjects} {...sharedProps} />,
+    "submit-dpr": <SubmitDPR user={user} projects={visibleProjects} setReports={setReports} {...sharedProps} />,
+    reports:      <Reports projects={visibleProjects} reports={reports} {...sharedProps} />,
+    materials:    <Materials user={user} projects={visibleProjects} {...sharedProps} />,
+    financials:   <Financials projects={visibleProjects} reports={reports} {...sharedProps} />,
     users:        <UserManagement user={user} userRole={userRole} projects={projects} {...sharedProps} />,
   }
 
