@@ -14,7 +14,7 @@ import {
   ArrowLeft, Edit3, MoreVertical, Sun, CloudRain,
   Cloud, User, ShoppingCart, Activity, Layers,
   ChevronRight, AlertCircle, RefreshCw, Upload,
-  HardHat, Wrench, Truck, Loader
+  HardHat, Wrench, Truck, Loader, UserPlus
 } from "lucide-react"
 
 const FONT = "'Barlow', sans-serif"
@@ -29,11 +29,19 @@ const C = {
   navy: "#1E3A5F", charcoal: "#334155",
 }
 
-const COST_CATEGORIES_COLORS = [C.accent, C.info, C.success, C.warning, C.charcoal]
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmt = n => n >= 10000000 ? `₹${(n / 10000000).toFixed(1)}Cr` : n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${(n || 0).toLocaleString("en-IN")}`
+
+// Professional role label — applied only in Sidebar user card.
+// Stored Supabase values are never changed, only the display text.
+const formatRole = role => ({
+  admin:           "Admin",
+  project_manager: "Project Manager",
+  site_engineer:   "Site Engineer",
+  accountant:      "Accountant",
+  viewer:          "Viewer",
+}[role] || "Viewer")
 
 const downloadCSV = (reports) => {
   const headers = ["Project", "Floor", "Stage", "Date", "Weather", "Manpower", "Labor Cost", "Material Cost", "Equipment Cost", "Subcontractor Cost", "Other Cost", "Total Cost", "Remarks"]
@@ -108,6 +116,9 @@ const StatusBadge = ({ status }) => {
     "completed": { color: C.info, bg: "#DBEAFE" }, "inactive": { color: C.textMuted, bg: "#F1F5F9" },
     "Admin": { color: C.accent, bg: "#FFF7ED" }, "Project Manager": { color: C.info, bg: "#DBEAFE" },
     "Site Engineer": { color: C.success, bg: "#D1FAE5" }, "Accountant": { color: C.warning, bg: "#FEF3C7" },
+    "admin": { color: C.accent, bg: "#FFF7ED" }, "project_manager": { color: C.info, bg: "#DBEAFE" },
+    "site_engineer": { color: C.success, bg: "#D1FAE5" }, "accountant": { color: C.warning, bg: "#FEF3C7" },
+    "viewer": { color: C.textMuted, bg: "#F1F5F9" },
     "Cement & Concrete": { color: "#92400E", bg: "#FEF3C7" }, "Steel & Iron": { color: "#1E3A5F", bg: "#DBEAFE" },
     "Aggregates": { color: "#065F46", bg: "#D1FAE5" }, "Masonry": { color: "#6B21A8", bg: "#F3E8FF" },
     "Electrical": { color: "#B45309", bg: "#FEF3C7" }, "Plumbing": { color: "#0369A1", bg: "#E0F2FE" },
@@ -214,7 +225,7 @@ const NAV = [
   { key: "users", label: "User Management", icon: Users },
 ]
 
-const Sidebar = ({ page, setPage, user, onSignOut }) => (
+const Sidebar = ({ page, setPage, user, userRole, onSignOut }) => (
   <div style={{ width: 240, minWidth: 240, background: C.sidebar, height: "100vh", display: "flex", flexDirection: "column", position: "sticky", top: 0 }}>
     <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid #1E3A5F" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -245,7 +256,9 @@ const Sidebar = ({ page, setPage, user, onSignOut }) => (
         </div>
         <div style={{ flex: 1, overflow: "hidden" }}>
           <p style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: "#E2E8F0", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.email?.split("@")[0] || "User"}</p>
-          <p style={{ fontFamily: FONT, fontSize: 11, color: "#64748B", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.email}</p>
+          <p style={{ fontFamily: FONT, fontSize: 11, color: "#64748B", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {formatRole(userRole)}
+          </p>
         </div>
       </div>
       <button onClick={onSignOut} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: "none", cursor: "pointer", background: "transparent", transition: "all 0.15s" }}
@@ -357,9 +370,11 @@ const Auth = ({ onSuccess }) => {
       if (tab === "signin") {
         const { data, error: e } = await supabase.auth.signInWithPassword({ email, password: pass })
         if (e) throw e
+        // Role is fetched from DB in App root — not from frontend selection
         onSuccess(data.user)
       } else {
         if (!name) return setError("Please enter your name.")
+        // New signups always receive 'viewer' role — admin assigns roles later
         const { error: e } = await supabase.auth.signUp({ email, password: pass, options: { data: { full_name: name } } })
         if (e) throw e
         setSuccess(true)
@@ -464,7 +479,6 @@ const Dashboard = ({ user, setPage, projects, reports }) => {
 const Projects = ({ user, projects, setProjects, notifications, onMarkAllRead }) => {
   const [showModal, setShowModal] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ name: "", start_date: "", target_end_date: "", total_cost: "", area_of_site: "", latitude: "", longitude: "", status: "active" })
 
@@ -563,54 +577,141 @@ const Projects = ({ user, projects, setProjects, notifications, onMarkAllRead })
 }
 
 // ─── Submit DPR ───────────────────────────────────────────────────────────────
+// FIX: total_cost is a GENERATED ALWAYS column — never included in insert payload.
+// The 5 cost components are sent; Supabase computes total_cost automatically.
+// After successful insert, the returned row's DB-computed total_cost is displayed.
 
 const WEATHER_OPTIONS = ["", "Sunny", "Cloudy", "Rainy", "Windy", "Foggy"]
-const FLOORS = ["", "Ground Floor", "First Floor", "Other Floors"]
+const FLOORS = ["", "Layout / Drawings", "Ground Floor", "First Floor", "Other Floors"]
 const STAGES_BY_FLOOR = {
-  "Ground Floor": ["Site Preparation", "Foundation & Footing", "Column Construction", "Beam & Slab", "Brickwork / Masonry", "Electrical Works", "Plumbing", "Site Plan", "Footing Layout", "Column Layout", "Floor Plan"],
-  "First Floor": ["Column Construction", "Beam & Slab", "Brickwork / Masonry", "Door Schedule", "Electrical Works", "Plumbing", "Floor Plan", "Brick Work", "Door/Window Schedule", "Electrical Layout", "Plumbing Layout"],
-  "Other Floors": ["Column Construction", "Beam & Slab", "Brickwork / Masonry", "Door Schedule", "Electrical Works", "Plumbing", "Floor Plan", "Brick Work", "Door/Window Schedule", "Electrical Layout", "Plumbing Layout"],
+  "Layout / Drawings": [
+    "Site Plan", "Footing Layout", "Column Layout",
+    "Floor Plan (Ground)", "Floor Plan (First)", "Floor Plan (Other)",
+    "Brick Work Layout", "Door & Window Layout", "Electrical Layout", "Plumbing Layout",
+  ],
+  "Ground Floor": [
+    "Site Preparation", "Excavation", "Foundation Work", "Plinth Work",
+    "Superstructure Work", "Roof Work", "Flooring Work", "Plastering",
+    "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+  ],
+  "First Floor": [
+    "Plinth Work", "Superstructure Work", "Roof Work", "Flooring Work",
+    "Plastering", "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+  ],
+  "Other Floors": [
+    "Plinth Work", "Superstructure Work", "Roof Work", "Flooring Work",
+    "Plastering", "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+  ],
 }
 
-const SubmitDPR = ({ user, projects, reports, setReports, notifications, onMarkAllRead }) => {
+const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead }) => {
   const today = new Date().toISOString().split("T")[0]
   const [form, setForm] = useState({ project_id: "", report_date: today, weather: "", floor: "", stage: "", manpower_count: "", machinery_used: "", work_completed: "", materials_used: "", safety_incidents: "", remarks: "", labor_cost: "0", material_cost: "0", equipment_cost: "0", subcontractor_cost: "0", other_cost: "0" })
-  const [submitted, setSubmitted] = useState(false)
+  const [submittedReport, setSubmittedReport] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [photoFiles, setPhotoFiles] = useState([])
+  const [photoUploading, setPhotoUploading] = useState(false)
 
-  const total = ["labor_cost", "material_cost", "equipment_cost", "subcontractor_cost", "other_cost"].reduce((s, k) => s + (parseFloat(form[k]) || 0), 0)
+  // Live total: computed in the UI from the 5 cost fields (for user visibility before submit)
+  const liveTotal = ["labor_cost", "material_cost", "equipment_cost", "subcontractor_cost", "other_cost"]
+    .reduce((s, k) => s + (parseFloat(form[k]) || 0), 0)
+
   const stages = form.floor ? STAGES_BY_FLOOR[form.floor] || [] : []
 
   const handleSubmit = async () => {
     setError("")
-    if (!form.project_id || !form.report_date || !form.floor || !form.stage) return setError("Please fill in Project, Date, Floor and Stage.")
+    if (!form.project_id || !form.report_date || !form.floor || !form.stage)
+      return setError("Please fill in Project, Date, Floor and Stage.")
     setSaving(true)
+
+    // CRITICAL: total_cost is intentionally excluded — it is a GENERATED ALWAYS column.
+    // Supabase computes it from the 5 cost fields automatically on insert.
     const payload = {
-      project_id: form.project_id, user_id: user.id, report_date: form.report_date,
-      weather: form.weather || null, manpower_count: parseInt(form.manpower_count) || 0,
-      stage: form.stage, floor: form.floor, work_completed: form.work_completed || null,
-      machinery_used: form.machinery_used || null, materials_used: form.materials_used || null,
-      safety_incidents: form.safety_incidents || null, remarks: form.remarks || null,
-      labor_cost: parseFloat(form.labor_cost) || 0, material_cost: parseFloat(form.material_cost) || 0,
-      equipment_cost: parseFloat(form.equipment_cost) || 0, subcontractor_cost: parseFloat(form.subcontractor_cost) || 0,
+      project_id: form.project_id,
+      user_id: user.id,
+      report_date: form.report_date,
+      weather: form.weather || null,
+      manpower_count: parseInt(form.manpower_count) || 0,
+      stage: form.stage,
+      floor: form.floor,
+      work_completed: form.work_completed || null,
+      machinery_used: form.machinery_used || null,
+      materials_used: form.materials_used || null,
+      safety_incidents: form.safety_incidents || null,
+      remarks: form.remarks || null,
+      labor_cost: parseFloat(form.labor_cost) || 0,
+      material_cost: parseFloat(form.material_cost) || 0,
+      equipment_cost: parseFloat(form.equipment_cost) || 0,
+      subcontractor_cost: parseFloat(form.subcontractor_cost) || 0,
       other_cost: parseFloat(form.other_cost) || 0,
+      // total_cost is NOT sent — GENERATED ALWAYS column
     }
-    const { data, error: e } = await supabase.from("daily_reports").insert(payload).select("*, projects(name)").single()
+
+    const { data, error: e } = await supabase
+      .from("daily_reports")
+      .insert(payload)
+      .select("*, projects(name)")
+      .single()
+
     if (e) { setError(e.message); setSaving(false); return }
+
+    // Upload photos if any were selected
+    if (photoFiles.length > 0) {
+      setPhotoUploading(true)
+      for (const file of photoFiles) {
+        const ext = file.name.split(".").pop()
+        const uniqueName = `${Math.random().toString(36).slice(2)}-${Date.now()}.${ext}`
+        const filePath = `${form.project_id}/${data.id}/${uniqueName}`
+        const { error: upErr } = await supabase.storage.from("dpr-photos").upload(filePath, file)
+        if (!upErr) {
+          const { data: urlData } = await supabase.storage.from("dpr-photos").createSignedUrl(filePath, 86400)
+          await supabase.from("dpr_photos").insert({
+            daily_report_id: data.id,
+            project_id: form.project_id,
+            user_id: user.id,
+            file_name: file.name,
+            file_path: filePath,
+            public_url: urlData?.signedUrl || null,
+            file_size: file.size,
+            mime_type: file.type,
+          })
+        }
+      }
+      setPhotoUploading(false)
+    }
+
+    // Update reports state with DB-returned row (includes DB-computed total_cost)
     setReports(rs => [data, ...rs])
-    setSubmitted(true)
+    setSubmittedReport(data)
     setSaving(false)
   }
 
-  if (submitted) return (
+  const handleReset = () => {
+    setSubmittedReport(null)
+    setPhotoFiles([])
+    setForm({ project_id: "", report_date: today, weather: "", floor: "", stage: "", manpower_count: "", machinery_used: "", work_completed: "", materials_used: "", safety_incidents: "", remarks: "", labor_cost: "0", material_cost: "0", equipment_cost: "0", subcontractor_cost: "0", other_cost: "0" })
+  }
+
+  // Success screen shows the DB-returned total_cost as final truth
+  if (submittedReport) return (
     <div style={{ padding: 28 }}>
       <TopBar title="Submit DPR" notifications={notifications} onMarkAllRead={onMarkAllRead} />
       <div style={{ background: C.card, borderRadius: 16, padding: 48, textAlign: "center", marginTop: 24 }}>
         <CheckCircle size={56} color={C.success} style={{ marginBottom: 16 }} />
         <h2 style={{ fontFamily: FONT_HEADING, fontSize: 26, fontWeight: 700, color: C.text, margin: "0 0 8px" }}>Report Submitted</h2>
-        <p style={{ fontFamily: FONT, fontSize: 14, color: C.textMuted, margin: "0 0 24px" }}>Your daily progress report has been saved successfully.</p>
-        <Btn onClick={() => { setSubmitted(false); setForm({ project_id: "", report_date: today, weather: "", floor: "", stage: "", manpower_count: "", machinery_used: "", work_completed: "", materials_used: "", safety_incidents: "", remarks: "", labor_cost: "0", material_cost: "0", equipment_cost: "0", subcontractor_cost: "0", other_cost: "0" }) }}>Submit Another Report</Btn>
+        <p style={{ fontFamily: FONT, fontSize: 14, color: C.textMuted, margin: "0 0 24px" }}>
+          Daily progress report for <strong>{submittedReport.projects?.name}</strong> saved successfully.
+        </p>
+        {/* DB-computed total_cost displayed as final confirmed value */}
+        <div style={{ background: C.accentLight, border: `1px solid ${C.accent}40`, borderRadius: 12, padding: "16px 28px", display: "inline-block", marginBottom: 28 }}>
+          <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Total Cost Recorded</p>
+          <p style={{ fontFamily: FONT_HEADING, fontSize: 32, fontWeight: 800, color: C.accent, margin: 0 }}>{fmt(submittedReport.total_cost)}</p>
+          <p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: "4px 0 0" }}>Confirmed by database · contributes to project financials</p>
+        </div>
+        <div>
+          <Btn onClick={handleReset}>Submit Another Report</Btn>
+        </div>
       </div>
     </div>
   )
@@ -650,22 +751,232 @@ const SubmitDPR = ({ user, projects, reports, setReports, notifications, onMarkA
               <Input key={k} label={label} type="number" value={form[k]} onChange={e => f(k, e.target.value)} placeholder="0" />
             ))}
           </div>
+          {/* Live total: shown before submit for user reference — Supabase will confirm final value */}
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
-            <span style={{ fontFamily: FONT, fontSize: 14, color: C.textMuted, fontWeight: 600 }}>Total Cost for Today:</span>
-            <span style={{ fontFamily: FONT_HEADING, fontSize: 24, fontWeight: 800, color: C.accent }}>{fmt(total)}</span>
+            <span style={{ fontFamily: FONT, fontSize: 14, color: C.textMuted, fontWeight: 600 }}>Total Cost Today:</span>
+            <span style={{ fontFamily: FONT_HEADING, fontSize: 24, fontWeight: 800, color: C.accent }}>{fmt(liveTotal)}</span>
           </div>
         </div>
+        <div style={{ background: "#F8FAFC", borderRadius: 12, padding: 20, border: `1px solid ${C.border}`, marginBottom: 24 }}>
+          <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Site Photos</h3>
+          <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: "0 0 16px" }}>Optional · up to 5 images · JPEG, PNG, WebP or HEIC · max 5MB each</p>
+          {photoFiles.length === 0 ? (
+            <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 10, padding: "28px 20px", cursor: "pointer", background: "#fff" }}>
+              <Camera size={28} color={C.textLight} />
+              <span style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, fontWeight: 500 }}>Click to select photos</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple style={{ display: "none" }}
+                onChange={e => setPhotoFiles(Array.from(e.target.files).slice(0, 5))} />
+            </label>
+          ) : (
+            <div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                {photoFiles.map((pf, i) => (
+                  <div key={i} style={{ position: "relative", width: 90, height: 90, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}`, flexShrink: 0 }}>
+                    <img src={URL.createObjectURL(pf)} alt={pf.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <button onClick={() => setPhotoFiles(prev => prev.filter((_, idx) => idx !== i))}
+                      style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.65)", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                      <X size={11} color="#fff" />
+                    </button>
+                  </div>
+                ))}
+                {photoFiles.length < 5 && (
+                  <label style={{ width: 90, height: 90, display: "flex", alignItems: "center", justifyContent: "center", border: `2px dashed ${C.border}`, borderRadius: 8, cursor: "pointer", flexShrink: 0, background: "#fff" }}>
+                    <Plus size={20} color={C.textLight} />
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple style={{ display: "none" }}
+                      onChange={e => setPhotoFiles(prev => [...prev, ...Array.from(e.target.files)].slice(0, 5))} />
+                  </label>
+                )}
+              </div>
+              <span style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted }}>{photoFiles.length} photo{photoFiles.length !== 1 ? "s" : ""} selected</span>
+            </div>
+          )}
+        </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <Btn onClick={handleSubmit} disabled={saving} size="lg" icon={CheckCircle}>{saving ? "Submitting..." : "Submit Report"}</Btn>
+          <Btn onClick={handleSubmit} disabled={saving || photoUploading} size="lg" icon={CheckCircle}>{photoUploading ? "Uploading photos..." : saving ? "Submitting..." : "Submit Report"}</Btn>
         </div>
       </div>
     </div>
   )
 }
 
+// ─── Photos Tab ───────────────────────────────────────────────────────────────
+
+const PhotosTab = ({ user, userRole, projects, projFilter }) => {
+  const [dprPhotos, setDprPhotos] = useState([])
+  const [galleryPhotos, setGalleryPhotos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [galleryFiles, setGalleryFiles] = useState([])
+  const [galleryProject, setGalleryProject] = useState("")
+  const [galleryCaption, setGalleryCaption] = useState("")
+  const [uploading, setUploading] = useState(false)
+  const [lightbox, setLightbox] = useState(null)
+
+  const isSiteEngineer = userRole === "site_engineer"
+
+  const signUrls = async (bucket, rows) => {
+    return Promise.all(rows.map(async row => {
+      if (!row.file_path) return row
+      const { data } = await supabase.storage.from(bucket).createSignedUrl(row.file_path, 3600)
+      return { ...row, signed_url: data?.signedUrl || null }
+    }))
+  }
+
+  const load = async () => {
+    setLoading(true)
+    const projectIds = projFilter === "All Projects" ? projects.map(p => p.id) : [projFilter]
+    if (projectIds.length === 0) { setLoading(false); return }
+    const [{ data: dp }, { data: gp }] = await Promise.all([
+      supabase.from("dpr_photos").select("*, daily_reports(report_date)").in("project_id", projectIds).order("created_at", { ascending: false }),
+      supabase.from("project_photos").select("*, profiles(full_name)").in("project_id", projectIds).order("created_at", { ascending: false }),
+    ])
+    const [signedDpr, signedGallery] = await Promise.all([
+      signUrls("dpr-photos", dp || []),
+      signUrls("project-gallery", gp || []),
+    ])
+    setDprPhotos(signedDpr)
+    setGalleryPhotos(signedGallery)
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [projFilter])
+
+  const handleGalleryUpload = async () => {
+    if (!galleryProject || galleryFiles.length === 0) return
+    setUploading(true)
+    for (const file of galleryFiles) {
+      const ext = file.name.split(".").pop()
+      const uniqueName = `${Math.random().toString(36).slice(2)}-${Date.now()}.${ext}`
+      const filePath = `${galleryProject}/${uniqueName}`
+      const { error: upErr } = await supabase.storage.from("project-gallery").upload(filePath, file)
+      if (!upErr) {
+        const { data: urlData } = await supabase.storage.from("project-gallery").createSignedUrl(filePath, 3600)
+        await supabase.from("project_photos").insert({
+          project_id: galleryProject,
+          user_id: user.id,
+          file_name: file.name,
+          file_path: filePath,
+          public_url: urlData?.signedUrl || null,
+          caption: galleryCaption || null,
+          file_size: file.size,
+          mime_type: file.type,
+        })
+      }
+    }
+    setUploading(false)
+    setShowUploadModal(false)
+    setGalleryFiles([]); setGalleryProject(""); setGalleryCaption("")
+    load()
+  }
+
+  const PhotoGrid = ({ photos, emptyMsg }) => {
+    if (photos.length === 0) return <Empty message={emptyMsg} />
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+        {photos.map(ph => (
+          <div key={ph.id} onClick={() => setLightbox({ url: ph.signed_url, caption: ph.caption || ph.file_name })}
+            style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}`, cursor: "pointer", background: "#F8FAFC" }}>
+            {ph.signed_url
+              ? <img src={ph.signed_url} alt={ph.file_name} style={{ width: "100%", height: 130, objectFit: "cover", display: "block" }} />
+              : <div style={{ width: "100%", height: 130, display: "flex", alignItems: "center", justifyContent: "center" }}><Camera size={24} color={C.textLight} /></div>}
+            <div style={{ padding: "8px 10px" }}>
+              <p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {ph.caption || ph.daily_reports?.report_date || ph.file_name}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (loading) return <Spinner />
+
+  return (
+    <div>
+      <div style={{ marginBottom: 36 }}>
+        <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>DPR Photos</h3>
+        <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: "0 0 16px" }}>Photos attached to Daily Progress Reports</p>
+        <PhotoGrid photos={dprPhotos} emptyMsg="No DPR photos yet" />
+      </div>
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Project Gallery</h3>
+            <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0 }}>Standalone site photos not tied to a specific DPR</p>
+          </div>
+          {isSiteEngineer && (
+            <Btn icon={Camera} size="sm" onClick={() => setShowUploadModal(true)}>Upload Photos</Btn>
+          )}
+        </div>
+        <PhotoGrid photos={galleryPhotos} emptyMsg="No gallery photos yet" />
+      </div>
+
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "relative", maxWidth: 860, width: "100%" }}>
+            <img src={lightbox.url} alt={lightbox.caption} style={{ width: "100%", maxHeight: "80vh", objectFit: "contain", borderRadius: 12 }} />
+            {lightbox.caption && <p style={{ fontFamily: FONT, fontSize: 13, color: "#E2E8F0", textAlign: "center", marginTop: 12 }}>{lightbox.caption}</p>}
+            <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: -12, right: -12, background: "#fff", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
+              <X size={16} color={C.text} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showUploadModal && (
+        <Modal title="Upload Site Photos" onClose={() => { setShowUploadModal(false); setGalleryFiles([]) }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Select label="Project" required value={galleryProject} onChange={e => setGalleryProject(e.target.value)}
+              options={[{ value: "", label: "Select Project" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
+            <div>
+              <label style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>Photos <span style={{ color: C.danger }}>*</span></label>
+              {galleryFiles.length === 0 ? (
+                <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 10, padding: "24px 20px", cursor: "pointer", background: "#F8FAFC" }}>
+                  <Upload size={24} color={C.textLight} />
+                  <span style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted }}>Click to select up to 5 photos</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple style={{ display: "none" }}
+                    onChange={e => setGalleryFiles(Array.from(e.target.files).slice(0, 5))} />
+                </label>
+              ) : (
+                <div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                    {galleryFiles.map((f, i) => (
+                      <div key={i} style={{ position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
+                        <img src={URL.createObjectURL(f)} alt={f.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <button onClick={() => setGalleryFiles(prev => prev.filter((_, idx) => idx !== i))}
+                          style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.65)", border: "none", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                          <X size={10} color="#fff" />
+                        </button>
+                      </div>
+                    ))}
+                    {galleryFiles.length < 5 && (
+                      <label style={{ width: 72, height: 72, display: "flex", alignItems: "center", justifyContent: "center", border: `2px dashed ${C.border}`, borderRadius: 8, cursor: "pointer", background: "#F8FAFC" }}>
+                        <Plus size={18} color={C.textLight} />
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple style={{ display: "none" }}
+                          onChange={e => setGalleryFiles(prev => [...prev, ...Array.from(e.target.files)].slice(0, 5))} />
+                      </label>
+                    )}
+                  </div>
+                  <span style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted }}>{galleryFiles.length} photo{galleryFiles.length !== 1 ? "s" : ""} selected</span>
+                </div>
+              )}
+            </div>
+            <Input label="Caption (optional)" value={galleryCaption} onChange={e => setGalleryCaption(e.target.value)} placeholder="e.g. Foundation work completed" />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+              <Btn variant="secondary" onClick={() => { setShowUploadModal(false); setGalleryFiles([]) }}>Cancel</Btn>
+              <Btn icon={Upload} disabled={uploading || !galleryProject || galleryFiles.length === 0} onClick={handleGalleryUpload}>{uploading ? "Uploading..." : "Upload"}</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 // ─── Reports ──────────────────────────────────────────────────────────────────
 
-const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
+const Reports = ({ user, userRole, projects, reports, notifications, onMarkAllRead }) => {
   const [tab, setTab] = useState("Overview")
   const [projFilter, setProjFilter] = useState("All Projects")
 
@@ -675,7 +986,6 @@ const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
   const avgManpower = reports.length > 0 ? Math.round(reports.reduce((s, r) => s + (r.manpower_count || 0), 0) / reports.length) : 0
   const delayed = projects.filter(p => p.status === "delayed").length
 
-  // Build cost trend from real reports grouped by month
   const costTrend = Object.values(
     reports.reduce((acc, r) => {
       const key = r.report_date?.slice(0, 7)
@@ -687,7 +997,6 @@ const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
   ).sort((a, b) => a.date.localeCompare(b.date)).slice(-6).map(d => ({ ...d, date: new Date(d.date + "-01").toLocaleDateString("en-IN", { month: "short", year: "2-digit" }) }))
 
   const manpowerTrend = reports.slice(0, 10).reverse().map(r => ({ date: r.report_date?.slice(5), manpower: r.manpower_count || 0, cost: r.total_cost || 0 }))
-
   const budgetVsActual = projects.map(p => ({ project: p.name.split(" ").slice(0, 2).join(" "), budget: p.total_cost || 0, spent: p.total_spent || 0 }))
 
   const costCats = [
@@ -699,8 +1008,20 @@ const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
   ]
 
   const STAGES_DATA = {
-    "Layout / Plan / Drawings": ["Site Plan", "Footing Layout", "Column Layout", "Floor Plan (Ground)", "Floor Plan (First)", "Floor Plan (Other)"],
-    "Execution": ["Site Preparation", "Brick Work (Ground)", "Brick Work (First)", "Brick Work (Other)", "Door/Window Schedule (Ground)", "Door/Window Schedule (First)", "Electrical Layout (Ground)", "Electrical Layout (First)", "Plumbing Layout"],
+    "Layout / Plan / Drawings": [
+      "Site Plan", "Footing Layout", "Column Layout",
+      "Floor Plan (Ground)", "Floor Plan (First)", "Floor Plan (Other)",
+      "Brick Work Layout", "Door & Window Layout", "Electrical Layout", "Plumbing Layout",
+    ],
+    "Execution — Ground Floor": [
+      "Site Preparation", "Excavation", "Foundation Work", "Plinth Work",
+      "Superstructure Work", "Roof Work", "Flooring Work", "Plastering",
+      "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+    ],
+    "Execution — First / Other Floors": [
+      "Plinth Work", "Superstructure Work", "Roof Work", "Flooring Work",
+      "Plastering", "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+    ],
   }
 
   return (
@@ -800,28 +1121,48 @@ const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
             </div>
           )}
           {tab === "Photos" && (
-            <Empty message="Photo uploads coming soon" sub="Use the DPR form to attach site photos once storage is configured" />
+            <PhotosTab user={user} userRole={userRole} projects={projects} projFilter={projFilter} />
           )}
-          {tab === "Stages" && (
-            <div>
-              {Object.entries(STAGES_DATA).map(([group, stages]) => (
-                <div key={group} style={{ marginBottom: 28 }}>
-                  <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.navy, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `2px solid ${C.accent}`, paddingBottom: 8 }}>{group}</h3>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
-                    {stages.map(stage => {
-                      const count = reports.filter(r => r.stage === stage || r.stage?.includes(stage.split(" ")[0])).length
-                      return (
-                        <div key={stage} style={{ background: "#F8FAFC", borderRadius: 10, padding: "12px 16px", border: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontFamily: FONT, fontSize: 13, color: C.text, fontWeight: 500 }}>{stage}</span>
-                          {count > 0 ? <Badge label={`${count} report${count > 1 ? "s" : ""}`} color={C.success} bg="#D1FAE5" /> : <Badge label="No reports" color={C.textMuted} bg="#F1F5F9" />}
-                        </div>
-                      )
-                    })}
+          {tab === "Stages" && (() => {
+            // Count DPRs per stage; max count used to normalise progress bars across all groups
+            const allStages = Object.values(STAGES_DATA).flat()
+            const countMap = Object.fromEntries(allStages.map(s => [s, reports.filter(r => r.stage === s).length]))
+            const maxCount = Math.max(1, ...Object.values(countMap))
+            return (
+              <div>
+                {Object.entries(STAGES_DATA).map(([group, stages]) => (
+                  <div key={group} style={{ marginBottom: 36 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, paddingBottom: 10, borderBottom: `2px solid ${C.accent}` }}>
+                      <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.navy, margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>{group}</h3>
+                      <span style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
+                        {stages.filter(s => countMap[s] > 0).length}/{stages.length} stages active
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+                      {stages.map(stage => {
+                        const count = countMap[stage] || 0
+                        const pct = Math.round((count / maxCount) * 100)
+                        const barColor = count === 0 ? C.border : pct >= 60 ? C.success : C.accent
+                        return (
+                          <div key={stage} style={{ background: "#F8FAFC", borderRadius: 10, padding: "14px 16px", border: `1px solid ${count > 0 ? C.accent + "40" : C.border}` }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                              <span style={{ fontFamily: FONT, fontSize: 13, color: C.text, fontWeight: 600 }}>{stage}</span>
+                              <span style={{ fontFamily: FONT, fontSize: 11, fontWeight: 700, color: count > 0 ? C.success : C.textLight }}>
+                                {count > 0 ? `${count} DPR${count > 1 ? "s" : ""}` : "0 DPRs"}
+                              </span>
+                            </div>
+                            <div style={{ background: "#E2E8F0", borderRadius: 4, height: 6, overflow: "hidden" }}>
+                              <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 4, transition: "width 0.4s ease" }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>
@@ -829,8 +1170,10 @@ const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
 }
 
 // ─── Materials ────────────────────────────────────────────────────────────────
+// FIX: Contextual action button changes per active tab.
+// Add Usage and Add Purchase modals are now fully functional.
 
-const Materials = ({ user, notifications, onMarkAllRead }) => {
+const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
   const [tab, setTab] = useState("Materials")
   const [materials, setMaterials] = useState([])
   const [usage, setUsage] = useState([])
@@ -839,7 +1182,11 @@ const Materials = ({ user, notifications, onMarkAllRead }) => {
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState("")
-  const [form, setForm] = useState({ name: "", category: "", unit: "", cost_per_unit: "", current_stock: "", min_stock_level: "", supplier_name: "", supplier_contact: "" })
+
+  // Separate form state per modal type
+  const [matForm, setMatForm] = useState({ name: "", category: "", unit: "", cost_per_unit: "", current_stock: "", min_stock_level: "", supplier_name: "", supplier_contact: "" })
+  const [usageForm, setUsageForm] = useState({ material_id: "", quantity_used: "", project_id: "", usage_date: new Date().toISOString().split("T")[0], notes: "" })
+  const [purchaseForm, setPurchaseForm] = useState({ material_id: "", quantity_purchased: "", cost_per_unit: "", supplier_name: "", purchase_date: new Date().toISOString().split("T")[0], invoice_number: "" })
 
   useEffect(() => {
     const load = async () => {
@@ -855,29 +1202,101 @@ const Materials = ({ user, notifications, onMarkAllRead }) => {
     load()
   }, [])
 
-  const handleAdd = async () => {
-    if (!form.name || !form.category || !form.unit) return
+  // Add Material
+  const handleAddMaterial = async () => {
+    if (!matForm.name || !matForm.category || !matForm.unit) return
     setSaving(true)
-    const { data } = await supabase.from("materials").insert({ ...form, user_id: user.id, cost_per_unit: parseFloat(form.cost_per_unit) || 0, current_stock: parseFloat(form.current_stock) || 0, min_stock_level: parseFloat(form.min_stock_level) || 0 }).select().single()
+    const { data } = await supabase.from("materials").insert({
+      ...matForm,
+      user_id: user.id,
+      cost_per_unit: parseFloat(matForm.cost_per_unit) || 0,
+      current_stock: parseFloat(matForm.current_stock) || 0,
+      min_stock_level: parseFloat(matForm.min_stock_level) || 0,
+    }).select().single()
     if (data) setMaterials(ms => [data, ...ms])
-    setSaving(false); setShowModal(false); setForm({ name: "", category: "", unit: "", cost_per_unit: "", current_stock: "", min_stock_level: "", supplier_name: "", supplier_contact: "" })
+    setSaving(false); setShowModal(false)
+    setMatForm({ name: "", category: "", unit: "", cost_per_unit: "", current_stock: "", min_stock_level: "", supplier_name: "", supplier_contact: "" })
   }
+
+  // Add Usage — stock auto-decremented by DB trigger
+  const handleAddUsage = async () => {
+    if (!usageForm.material_id || !usageForm.quantity_used || !usageForm.usage_date) return
+    setSaving(true)
+    const { data, error } = await supabase.from("material_usage").insert({
+      material_id: usageForm.material_id,
+      project_id: usageForm.project_id || null,
+      user_id: user.id,
+      quantity_used: parseFloat(usageForm.quantity_used),
+      usage_date: usageForm.usage_date,
+      notes: usageForm.notes || null,
+    }).select("*, materials(name), projects(name)").single()
+    if (data) {
+      setUsage(us => [data, ...us])
+      // Refresh material stock after trigger has run
+      const { data: updatedMat } = await supabase.from("materials").select("*").eq("id", usageForm.material_id).single()
+      if (updatedMat) setMaterials(ms => ms.map(m => m.id === updatedMat.id ? updatedMat : m))
+    }
+    setSaving(false); setShowModal(false)
+    setUsageForm({ material_id: "", quantity_used: "", project_id: "", usage_date: new Date().toISOString().split("T")[0], notes: "" })
+  }
+
+  // Add Purchase — stock auto-incremented by DB trigger
+  const handleAddPurchase = async () => {
+    if (!purchaseForm.material_id || !purchaseForm.quantity_purchased || !purchaseForm.purchase_date) return
+    setSaving(true)
+    const qty = parseFloat(purchaseForm.quantity_purchased)
+    const cpu = parseFloat(purchaseForm.cost_per_unit) || 0
+    const { data } = await supabase.from("material_purchases").insert({
+      material_id: purchaseForm.material_id,
+      user_id: user.id,
+      quantity_purchased: qty,
+      cost_per_unit: cpu,
+      total_cost: qty * cpu,
+      purchase_date: purchaseForm.purchase_date,
+      supplier_name: purchaseForm.supplier_name || null,
+      invoice_number: purchaseForm.invoice_number || null,
+    }).select("*, materials(name)").single()
+    if (data) {
+      setPurchases(ps => [data, ...ps])
+      // Refresh material stock after trigger has run
+      const { data: updatedMat } = await supabase.from("materials").select("*").eq("id", purchaseForm.material_id).single()
+      if (updatedMat) setMaterials(ms => ms.map(m => m.id === updatedMat.id ? updatedMat : m))
+    }
+    setSaving(false); setShowModal(false)
+    setPurchaseForm({ material_id: "", quantity_purchased: "", cost_per_unit: "", supplier_name: "", purchase_date: new Date().toISOString().split("T")[0], invoice_number: "" })
+  }
+
+  // Contextual button: label and handler change based on active tab
+  const ctxButton = {
+    "Materials":  { label: "Add Material",  action: () => setShowModal(true) },
+    "Usage Log":  { label: "Add Usage",     action: () => setShowModal(true) },
+    "Purchases":  { label: "Add Purchase",  action: () => setShowModal(true) },
+    "Analytics":  null,
+  }[tab]
 
   const filtered = materials.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.category.toLowerCase().includes(search.toLowerCase()))
   const totalValue = materials.reduce((s, m) => s + ((m.current_stock || 0) * (m.cost_per_unit || 0)), 0)
   const lowStock = materials.filter(m => (m.current_stock || 0) < (m.min_stock_level || 0)).length
 
+  const materialOptions = [{ value: "", label: "Select Material" }, ...materials.map(m => ({ value: m.id, label: `${m.name} (${m.unit})` }))]
+  const projectOptions = [{ value: "", label: "No Project" }, ...(projects || []).map(p => ({ value: p.id, label: p.name }))]
+
   return (
     <div style={{ padding: 28 }}>
-      <TopBar title="Materials & Inventory" subtitle={`${materials.length} materials tracked`} notifications={notifications} onMarkAllRead={onMarkAllRead}
-        actions={<Btn onClick={() => setShowModal(true)} icon={Plus}>Add Material</Btn>} />
+      <TopBar
+        title="Materials & Inventory"
+        subtitle={`${materials.length} materials tracked`}
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        actions={ctxButton ? <Btn onClick={ctxButton.action} icon={Plus}>{ctxButton.label}</Btn> : null}
+      />
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", margin: "24px 0" }}>
         <KPICard label="Total Items" value={materials.length} sub="in inventory" icon={Package} accent={C.info} />
         <KPICard label="Inventory Value" value={fmt(totalValue)} sub="current stock" icon={DollarSign} accent={C.success} />
         <KPICard label="Low Stock" value={lowStock} sub="need reorder" icon={AlertTriangle} accent={lowStock > 0 ? C.danger : C.success} />
       </div>
       <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-        <TabBar tabs={["Materials", "Usage Log", "Purchases", "Analytics"]} active={tab} onChange={setTab} />
+        <TabBar tabs={["Materials", "Usage Log", "Purchases", "Analytics"]} active={tab} onChange={t => { setTab(t); setShowModal(false) }} />
         <div style={{ padding: 24 }}>
           {loading ? <Spinner /> : (
             <>
@@ -889,18 +1308,18 @@ const Materials = ({ user, notifications, onMarkAllRead }) => {
                   {filtered.length === 0 ? <Empty message="No materials found" sub="Add your first material using the button above" /> : (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
                       {filtered.map(m => {
-                        const lowStock = (m.current_stock || 0) < (m.min_stock_level || 0)
+                        const isLow = (m.current_stock || 0) < (m.min_stock_level || 0)
                         return (
-                          <div key={m.id} style={{ background: "#F8FAFC", borderRadius: 12, padding: "16px 18px", border: `1px solid ${lowStock ? C.danger + "40" : C.border}` }}>
+                          <div key={m.id} style={{ background: "#F8FAFC", borderRadius: 12, padding: "16px 18px", border: `1px solid ${isLow ? C.danger + "40" : C.border}` }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                               <div>
                                 <p style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>{m.name}</p>
                                 <StatusBadge status={m.category} />
                               </div>
-                              {lowStock && <Badge label="Low Stock" color={C.danger} bg="#FEE2E2" />}
+                              {isLow && <Badge label="Low Stock" color={C.danger} bg="#FEE2E2" />}
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
-                              <div><p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0 }}>Current Stock</p><p style={{ fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 700, color: lowStock ? C.danger : C.text, margin: 0 }}>{(m.current_stock || 0).toLocaleString()} {m.unit}</p></div>
+                              <div><p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0 }}>Current Stock</p><p style={{ fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 700, color: isLow ? C.danger : C.text, margin: 0 }}>{(m.current_stock || 0).toLocaleString()} {m.unit}</p></div>
                               <div><p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0 }}>Unit Cost</p><p style={{ fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 700, color: C.text, margin: 0 }}>₹{m.cost_per_unit}</p></div>
                               <div><p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0 }}>Min Level</p><p style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.charcoal, margin: 0 }}>{(m.min_stock_level || 0).toLocaleString()} {m.unit}</p></div>
                               <div><p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0 }}>Total Value</p><p style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.success, margin: 0 }}>{fmt((m.current_stock || 0) * (m.cost_per_unit || 0))}</p></div>
@@ -913,22 +1332,39 @@ const Materials = ({ user, notifications, onMarkAllRead }) => {
                   )}
                 </div>
               )}
+
               {tab === "Usage Log" && (
-                usage.length === 0 ? <Empty message="No usage records yet" /> : (
+                usage.length === 0 ? <Empty message="No usage records yet" sub="Click Add Usage to log material consumption" /> : (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
                     <thead><tr style={{ background: "#F8FAFC" }}>{["Date", "Material", "Project", "Quantity", "Notes"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
-                    <tbody>{usage.map(u => <tr key={u.id} style={{ borderBottom: `1px solid ${C.border}` }}><td style={{ padding: "10px 14px" }}>{u.usage_date}</td><td style={{ padding: "10px 14px", fontWeight: 600 }}>{u.materials?.name}</td><td style={{ padding: "10px 14px" }}>{u.projects?.name || "—"}</td><td style={{ padding: "10px 14px" }}>{u.quantity_used}</td><td style={{ padding: "10px 14px", color: C.textMuted }}>{u.notes || "—"}</td></tr>)}</tbody>
+                    <tbody>{usage.map(u => <tr key={u.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: "10px 14px" }}>{u.usage_date}</td>
+                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>{u.materials?.name}</td>
+                      <td style={{ padding: "10px 14px" }}>{u.projects?.name || "—"}</td>
+                      <td style={{ padding: "10px 14px" }}>{u.quantity_used}</td>
+                      <td style={{ padding: "10px 14px", color: C.textMuted }}>{u.notes || "—"}</td>
+                    </tr>)}</tbody>
                   </table>
                 )
               )}
+
               {tab === "Purchases" && (
-                purchases.length === 0 ? <Empty message="No purchases recorded yet" /> : (
+                purchases.length === 0 ? <Empty message="No purchases recorded yet" sub="Click Add Purchase to record a procurement" /> : (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
                     <thead><tr style={{ background: "#F8FAFC" }}>{["Date", "Material", "Qty", "Unit Cost", "Total", "Supplier", "Invoice"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
-                    <tbody>{purchases.map(p => <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}` }}><td style={{ padding: "10px 14px" }}>{p.purchase_date}</td><td style={{ padding: "10px 14px", fontWeight: 600 }}>{p.materials?.name}</td><td style={{ padding: "10px 14px" }}>{p.quantity_purchased}</td><td style={{ padding: "10px 14px" }}>₹{p.cost_per_unit}</td><td style={{ padding: "10px 14px", fontWeight: 700, color: C.success }}>{fmt(p.total_cost)}</td><td style={{ padding: "10px 14px", color: C.textMuted }}>{p.supplier_name || "—"}</td><td style={{ padding: "10px 14px", color: C.textMuted }}>{p.invoice_number || "—"}</td></tr>)}</tbody>
+                    <tbody>{purchases.map(p => <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: "10px 14px" }}>{p.purchase_date}</td>
+                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>{p.materials?.name}</td>
+                      <td style={{ padding: "10px 14px" }}>{p.quantity_purchased}</td>
+                      <td style={{ padding: "10px 14px" }}>₹{p.cost_per_unit}</td>
+                      <td style={{ padding: "10px 14px", fontWeight: 700, color: C.success }}>{fmt(p.total_cost)}</td>
+                      <td style={{ padding: "10px 14px", color: C.textMuted }}>{p.supplier_name || "—"}</td>
+                      <td style={{ padding: "10px 14px", color: C.textMuted }}>{p.invoice_number || "—"}</td>
+                    </tr>)}</tbody>
                   </table>
                 )
               )}
+
               {tab === "Analytics" && (
                 materials.length === 0 ? <Empty message="Add materials to see analytics" /> : (
                   <div>
@@ -945,22 +1381,63 @@ const Materials = ({ user, notifications, onMarkAllRead }) => {
           )}
         </div>
       </div>
-      {showModal && (
+
+      {/* Add Material Modal */}
+      {showModal && tab === "Materials" && (
         <Modal title="Add Material" onClose={() => setShowModal(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="e.g. Portland Cement OPC 53" />
+            <Input label="Material Name" value={matForm.name} onChange={e => setMatForm(f => ({ ...f, name: e.target.value }))} required placeholder="e.g. Portland Cement OPC 53" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <Input label="Category" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} required placeholder="e.g. Cement & Concrete" />
-              <Input label="Unit" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} required placeholder="e.g. bag, kg, cft" />
-              <Input label="Cost per Unit (₹)" type="number" value={form.cost_per_unit} onChange={e => setForm(f => ({ ...f, cost_per_unit: e.target.value }))} placeholder="0" />
-              <Input label="Opening Stock" type="number" value={form.current_stock} onChange={e => setForm(f => ({ ...f, current_stock: e.target.value }))} placeholder="0" />
-              <Input label="Min Stock Level" type="number" value={form.min_stock_level} onChange={e => setForm(f => ({ ...f, min_stock_level: e.target.value }))} placeholder="0" />
-              <Input label="Supplier Name" value={form.supplier_name} onChange={e => setForm(f => ({ ...f, supplier_name: e.target.value }))} placeholder="Optional" />
+              <Input label="Category" value={matForm.category} onChange={e => setMatForm(f => ({ ...f, category: e.target.value }))} required placeholder="e.g. Cement & Concrete" />
+              <Input label="Unit" value={matForm.unit} onChange={e => setMatForm(f => ({ ...f, unit: e.target.value }))} required placeholder="e.g. bag, kg, cft" />
+              <Input label="Cost per Unit (₹)" type="number" value={matForm.cost_per_unit} onChange={e => setMatForm(f => ({ ...f, cost_per_unit: e.target.value }))} placeholder="0" />
+              <Input label="Opening Stock" type="number" value={matForm.current_stock} onChange={e => setMatForm(f => ({ ...f, current_stock: e.target.value }))} placeholder="0" />
+              <Input label="Min Stock Level" type="number" value={matForm.min_stock_level} onChange={e => setMatForm(f => ({ ...f, min_stock_level: e.target.value }))} placeholder="0" />
+              <Input label="Supplier Name" value={matForm.supplier_name} onChange={e => setMatForm(f => ({ ...f, supplier_name: e.target.value }))} placeholder="Optional" />
             </div>
-            <Input label="Supplier Contact" value={form.supplier_contact} onChange={e => setForm(f => ({ ...f, supplier_contact: e.target.value }))} placeholder="Phone or email" />
+            <Input label="Supplier Contact" value={matForm.supplier_contact} onChange={e => setMatForm(f => ({ ...f, supplier_contact: e.target.value }))} placeholder="Phone or email" />
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
               <Btn variant="secondary" onClick={() => setShowModal(false)}>Cancel</Btn>
-              <Btn onClick={handleAdd} disabled={saving}>{saving ? "Saving..." : "Add Material"}</Btn>
+              <Btn onClick={handleAddMaterial} disabled={saving}>{saving ? "Saving..." : "Add Material"}</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Add Usage Modal */}
+      {showModal && tab === "Usage Log" && (
+        <Modal title="Add Usage" onClose={() => setShowModal(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Select label="Material" value={usageForm.material_id} onChange={e => setUsageForm(f => ({ ...f, material_id: e.target.value }))} required options={materialOptions} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Input label="Quantity Used" type="number" value={usageForm.quantity_used} onChange={e => setUsageForm(f => ({ ...f, quantity_used: e.target.value }))} required placeholder="0" />
+              <Input label="Date" type="date" value={usageForm.usage_date} onChange={e => setUsageForm(f => ({ ...f, usage_date: e.target.value }))} required />
+            </div>
+            <Select label="Project" value={usageForm.project_id} onChange={e => setUsageForm(f => ({ ...f, project_id: e.target.value }))} options={projectOptions} />
+            <Input label="Remarks" value={usageForm.notes} onChange={e => setUsageForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes" />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+              <Btn variant="secondary" onClick={() => setShowModal(false)}>Cancel</Btn>
+              <Btn onClick={handleAddUsage} disabled={saving}>{saving ? "Saving..." : "Log Usage"}</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Add Purchase Modal */}
+      {showModal && tab === "Purchases" && (
+        <Modal title="Add Purchase" onClose={() => setShowModal(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Select label="Material" value={purchaseForm.material_id} onChange={e => setPurchaseForm(f => ({ ...f, material_id: e.target.value }))} required options={materialOptions} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Input label="Quantity Purchased" type="number" value={purchaseForm.quantity_purchased} onChange={e => setPurchaseForm(f => ({ ...f, quantity_purchased: e.target.value }))} required placeholder="0" />
+              <Input label="Cost per Unit (₹)" type="number" value={purchaseForm.cost_per_unit} onChange={e => setPurchaseForm(f => ({ ...f, cost_per_unit: e.target.value }))} placeholder="0" />
+              <Input label="Supplier" value={purchaseForm.supplier_name} onChange={e => setPurchaseForm(f => ({ ...f, supplier_name: e.target.value }))} placeholder="Supplier name" />
+              <Input label="Invoice No." value={purchaseForm.invoice_number} onChange={e => setPurchaseForm(f => ({ ...f, invoice_number: e.target.value }))} placeholder="Optional" />
+              <Input label="Purchase Date" type="date" value={purchaseForm.purchase_date} onChange={e => setPurchaseForm(f => ({ ...f, purchase_date: e.target.value }))} required />
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+              <Btn variant="secondary" onClick={() => setShowModal(false)}>Cancel</Btn>
+              <Btn onClick={handleAddPurchase} disabled={saving}>{saving ? "Saving..." : "Record Purchase"}</Btn>
             </div>
           </div>
         </Modal>
@@ -1082,42 +1559,112 @@ const Financials = ({ projects, reports, notifications, onMarkAllRead }) => {
 }
 
 // ─── User Management ──────────────────────────────────────────────────────────
+// FIX: Admin-only Assign Project button. Assignment modal stores to user_project_assignments.
+// Table now shows assigned user, project, and role.
 
-const UserManagement = ({ user, notifications, onMarkAllRead }) => {
+const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead }) => {
   const [assignments, setAssignments] = useState([])
   const [roles, setRoles] = useState([])
+  const [allProfiles, setAllProfiles] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [assignForm, setAssignForm] = useState({ user_id: "", project_id: "", role_id: "" })
+
+  const isAdmin = userRole === "admin"
 
   useEffect(() => {
     const load = async () => {
-      const [{ data: a }, { data: r }] = await Promise.all([
-        supabase.from("user_project_assignments").select("*, projects(name), user_roles(name, description, permissions)"),
+      const queries = [
+        supabase.from("user_project_assignments").select("*, projects(name), user_roles(name, description, permissions), profiles(full_name, role)").order("assigned_at", { ascending: false }),
         supabase.from("user_roles").select("*"),
-      ])
-      setAssignments(a || []); setRoles(r || [])
+      ]
+      // Admin can fetch all profiles to populate the assign modal user list
+      if (isAdmin) queries.push(supabase.from("profiles").select("id, full_name, role"))
+
+      const results = await Promise.all(queries)
+      setAssignments(results[0].data || [])
+      setRoles(results[1].data || [])
+      if (isAdmin && results[2]) setAllProfiles(results[2].data || [])
       setLoading(false)
     }
     load()
-  }, [])
+  }, [isAdmin])
+
+  const handleAssign = async () => {
+    if (!assignForm.user_id || !assignForm.project_id || !assignForm.role_id) return
+    setSaving(true)
+    const { data } = await supabase
+      .from("user_project_assignments")
+      .insert({
+        user_id: assignForm.user_id,
+        project_id: assignForm.project_id,
+        role_id: assignForm.role_id,
+        assigned_by: user.id,
+      })
+      .select("*, projects(name), user_roles(name, description, permissions), profiles(full_name, role)")
+      .single()
+    if (data) setAssignments(a => [data, ...a])
+    setSaving(false)
+    setShowAssignModal(false)
+    setAssignForm({ user_id: "", project_id: "", role_id: "" })
+  }
+
+  const profileOptions = [{ value: "", label: "Select User" }, ...allProfiles.map(p => ({ value: p.id, label: p.full_name || p.id.slice(0, 8) }))]
+  const projectOptions = [{ value: "", label: "Select Project" }, ...(projects || []).map(p => ({ value: p.id, label: p.name }))]
+  const roleOptions = [{ value: "", label: "Select Role" }, ...roles.map(r => ({ value: r.id, label: r.name }))]
 
   return (
     <div style={{ padding: 28 }}>
-      <TopBar title="User Management" subtitle="Roles and project assignments" notifications={notifications} onMarkAllRead={onMarkAllRead} />
+      <TopBar
+        title="User Management"
+        subtitle="Roles and project assignments"
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        // Assign Project button is visible to admin only
+        actions={isAdmin ? <Btn onClick={() => setShowAssignModal(true)} icon={UserPlus}>Assign Project</Btn> : null}
+      />
       {loading ? <Spinner /> : (
         <div style={{ display: "flex", flexDirection: "column", gap: 24, marginTop: 24 }}>
           <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-            <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h3 style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Project Assignments</h3>
+              <Badge label={`${assignments.length} assignment${assignments.length !== 1 ? "s" : ""}`} color={C.info} bg="#DBEAFE" />
             </div>
             <div style={{ padding: 24 }}>
-              {assignments.length === 0 ? <Empty message="No assignments yet" sub="Assign team members to projects from the Projects page" /> : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
-                  <thead><tr style={{ background: "#F8FAFC" }}>{["Project", "Role", "Assigned At"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
-                  <tbody>{assignments.map(a => <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}` }}><td style={{ padding: "10px 14px" }}>{a.projects?.name}</td><td style={{ padding: "10px 14px" }}><StatusBadge status={a.user_roles?.name} /></td><td style={{ padding: "10px 14px", color: C.textMuted }}>{new Date(a.assigned_at).toLocaleDateString("en-IN")}</td></tr>)}</tbody>
-                </table>
+              {assignments.length === 0 ? (
+                <Empty
+                  message="No assignments yet"
+                  sub={isAdmin ? "Click Assign Project to assign a team member" : "No project assignments have been created yet"}
+                />
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: "#F8FAFC" }}>
+                        {["User", "Project", "Role", "Assigned At"].map(h => (
+                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assignments.map(a => (
+                        <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                          <td style={{ padding: "10px 14px", fontWeight: 600 }}>
+                            {a.profiles?.full_name || a.user_id?.slice(0, 8) + "…"}
+                          </td>
+                          <td style={{ padding: "10px 14px" }}>{a.projects?.name || "—"}</td>
+                          <td style={{ padding: "10px 14px" }}><StatusBadge status={a.user_roles?.name} /></td>
+                          <td style={{ padding: "10px 14px", color: C.textMuted }}>{new Date(a.assigned_at).toLocaleDateString("en-IN")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
+
           <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
             <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}` }}>
               <h3 style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Available Roles</h3>
@@ -1138,22 +1685,40 @@ const UserManagement = ({ user, notifications, onMarkAllRead }) => {
           </div>
         </div>
       )}
+
+      {/* Assign Project Modal — admin only */}
+      {showAssignModal && isAdmin && (
+        <Modal title="Assign Project" onClose={() => setShowAssignModal(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Select label="User" value={assignForm.user_id} onChange={e => setAssignForm(f => ({ ...f, user_id: e.target.value }))} required options={profileOptions} />
+            <Select label="Project" value={assignForm.project_id} onChange={e => setAssignForm(f => ({ ...f, project_id: e.target.value }))} required options={projectOptions} />
+            <Select label="Role" value={assignForm.role_id} onChange={e => setAssignForm(f => ({ ...f, role_id: e.target.value }))} required options={roleOptions} />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+              <Btn variant="secondary" onClick={() => setShowAssignModal(false)}>Cancel</Btn>
+              <Btn onClick={handleAssign} disabled={saving} icon={UserPlus}>{saving ? "Assigning..." : "Assign"}</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
+// FIX: Role is fetched from profiles table in DB after login.
+// Frontend-selected role is never trusted.
 
 export default function App() {
   const [screen, setScreen] = useState("landing")
   const [page, setPage] = useState("dashboard")
   const [user, setUser] = useState(null)
+  const [userRole, setUserRole] = useState("viewer")         // fetched from DB — never from frontend
+  const [assignedProjectIds, setAssignedProjectIds] = useState([]) // project UUIDs this user is assigned to
   const [projects, setProjects] = useState([])
   const [reports, setReports] = useState([])
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Inject fonts
   useEffect(() => {
     const link = document.createElement("link")
     link.href = "https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800;900&display=swap"
@@ -1161,20 +1726,48 @@ export default function App() {
     document.head.appendChild(link)
   }, [])
 
-  // Auth state listener
+  // Fetch role from profiles table — single source of truth for RBAC
+  const fetchProfile = async (uid) => {
+    const { data } = await supabase.from("profiles").select("role").eq("id", uid).single()
+    if (data?.role) setUserRole(data.role)
+  }
+
+  // Fetch project IDs this user is assigned to (non-admin only).
+  // Uses the SECURITY DEFINER DB function to avoid RLS recursion.
+  const fetchAssignedProjects = async (role) => {
+    if (role === "admin") { setAssignedProjectIds([]); return }
+    const { data } = await supabase.rpc("get_assigned_project_ids")
+    setAssignedProjectIds(data || [])
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setUser(session.user); setScreen("app") }
+      if (session?.user) {
+        setUser(session.user)
+        fetchProfile(session.user.id).then(() => fetchAssignedProjects(userRole))
+        setScreen("app")
+      }
       setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) { setUser(session.user); setScreen("app") }
-      else { setUser(null); setScreen("landing"); setProjects([]); setReports([]) }
+      if (session?.user) {
+        setUser(session.user)
+        fetchProfile(session.user.id)
+        setScreen("app")
+      } else {
+        setUser(null)
+        setUserRole("viewer")
+        setAssignedProjectIds([])
+        setScreen("landing")
+        setProjects([])
+        setReports([])
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
 
-  // Load data when user is set
+  // After role and assignments are loaded, fetch data scoped by RLS automatically.
+  // visibleProjects filters the UI dropdowns for non-admin users.
   useEffect(() => {
     if (!user) return
     const loadData = async () => {
@@ -1189,6 +1782,12 @@ export default function App() {
     }
     loadData()
   }, [user])
+
+  // Fetch assigned project IDs whenever role resolves (non-admin only)
+  useEffect(() => {
+    if (!user || !userRole || userRole === "viewer") return
+    fetchAssignedProjects(userRole)
+  }, [userRole])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -1209,23 +1808,29 @@ export default function App() {
   )
 
   if (screen === "landing") return <Landing onLogin={() => setScreen("auth")} />
-  if (screen === "auth") return <Auth onSuccess={(u) => { setUser(u); setScreen("app") }} />
+  if (screen === "auth") return <Auth onSuccess={(u) => { setUser(u); fetchProfile(u.id); setScreen("app") }} />
+
+  // Admin sees all projects. Non-admin sees only their assigned projects.
+  // RLS enforces this at the DB level too — this is a UI-layer complement.
+  const visibleProjects = userRole === "admin"
+    ? projects
+    : projects.filter(p => assignedProjectIds.includes(p.id))
 
   const sharedProps = { notifications, onMarkAllRead: handleMarkAllRead }
 
   const PAGES = {
-    dashboard: <Dashboard user={user} setPage={setPage} projects={projects} reports={reports} />,
-    projects: <Projects user={user} projects={projects} setProjects={setProjects} {...sharedProps} />,
-    "submit-dpr": <SubmitDPR user={user} projects={projects} reports={reports} setReports={setReports} {...sharedProps} />,
-    reports: <Reports projects={projects} reports={reports} {...sharedProps} />,
-    materials: <Materials user={user} {...sharedProps} />,
-    financials: <Financials projects={projects} reports={reports} {...sharedProps} />,
-    users: <UserManagement user={user} {...sharedProps} />,
+    dashboard:    <Dashboard user={user} setPage={setPage} projects={visibleProjects} reports={reports} />,
+    projects:     <Projects user={user} projects={visibleProjects} setProjects={setProjects} {...sharedProps} />,
+    "submit-dpr": <SubmitDPR user={user} projects={visibleProjects} setReports={setReports} {...sharedProps} />,
+    reports:      <Reports user={user} userRole={userRole} projects={visibleProjects} reports={reports} {...sharedProps} />,
+    materials:    <Materials user={user} projects={visibleProjects} {...sharedProps} />,
+    financials:   <Financials projects={visibleProjects} reports={reports} {...sharedProps} />,
+    users:        <UserManagement user={user} userRole={userRole} projects={projects} {...sharedProps} />,
   }
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: FONT }}>
-      <Sidebar page={page} setPage={setPage} user={user} onSignOut={handleSignOut} />
+      <Sidebar page={page} setPage={setPage} user={user} userRole={userRole} onSignOut={handleSignOut} />
       <main style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
         {PAGES[page] || PAGES.dashboard}
       </main>
