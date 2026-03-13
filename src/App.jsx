@@ -1285,22 +1285,17 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
   const [loading, setLoading] = useState(true)
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
   const [assignForm, setAssignForm] = useState({ user_id: "", project_id: "", role_id: "" })
 
   const isAdmin = userRole === "admin"
 
   useEffect(() => {
     const load = async () => {
-      // NOTE: profiles is NOT joined here — user_project_assignments.user_id
-      // references auth.users, not profiles, so Supabase cannot resolve that FK.
-      // User names are resolved from allProfiles state instead.
       const queries = [
-        supabase.from("user_project_assignments")
-          .select("*, projects(name), user_roles(name, description, permissions)")
-          .order("assigned_at", { ascending: false }),
+        supabase.from("user_project_assignments").select("*, projects(name), user_roles(name, description, permissions), profiles(full_name, role)").order("assigned_at", { ascending: false }),
         supabase.from("user_roles").select("*"),
       ]
+      // Admin can fetch all profiles to populate the assign modal user list
       if (isAdmin) queries.push(supabase.from("profiles").select("id, full_name, role"))
 
       const results = await Promise.all(queries)
@@ -1313,14 +1308,9 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
   }, [isAdmin])
 
   const handleAssign = async () => {
-    setError("")
-    if (!assignForm.user_id || !assignForm.project_id || !assignForm.role_id)
-      return setError("Please select a user, project, and role.")
+    if (!assignForm.user_id || !assignForm.project_id || !assignForm.role_id) return
     setSaving(true)
-
-    // FIX: profiles join removed — no FK from user_project_assignments to profiles.
-    // The DB trigger sync_profile_role_on_assignment will update profiles.role automatically.
-    const { data, error: e } = await supabase
+    const { data } = await supabase
       .from("user_project_assignments")
       .insert({
         user_id: assignForm.user_id,
@@ -1328,32 +1318,17 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
         role_id: assignForm.role_id,
         assigned_by: user.id,
       })
-      .select("*, projects(name), user_roles(name, description, permissions)")
+      .select("*, projects(name), user_roles(name, description, permissions), profiles(full_name, role)")
       .single()
-
-    if (e) { setError(e.message); setSaving(false); return }
-
-    // Enrich the new row with user name from allProfiles (already in state)
-    const enriched = {
-      ...data,
-      _userName: allProfiles.find(p => p.id === assignForm.user_id)?.full_name || assignForm.user_id.slice(0, 8) + "…"
-    }
-    setAssignments(a => [enriched, ...a])
+    if (data) setAssignments(a => [data, ...a])
     setSaving(false)
     setShowAssignModal(false)
     setAssignForm({ user_id: "", project_id: "", role_id: "" })
   }
 
-  // Resolve user name: first from enriched _userName, then from allProfiles lookup
-  const getUserName = (a) =>
-    a._userName || allProfiles.find(p => p.id === a.user_id)?.full_name || a.user_id?.slice(0, 8) + "…"
-
-  // Only show the 3 assignable roles — exclude Admin from the dropdown
-  const assignableRoles = roles.filter(r => r.name !== "Admin")
-
-  const profileOptions = [{ value: "", label: "Select User" }, ...allProfiles.filter(p => p.role !== "admin").map(p => ({ value: p.id, label: p.full_name || p.id.slice(0, 8) }))]
+  const profileOptions = [{ value: "", label: "Select User" }, ...allProfiles.map(p => ({ value: p.id, label: p.full_name || p.id.slice(0, 8) }))]
   const projectOptions = [{ value: "", label: "Select Project" }, ...(projects || []).map(p => ({ value: p.id, label: p.name }))]
-  const roleOptions = [{ value: "", label: "Select Role" }, ...assignableRoles.map(r => ({ value: r.id, label: r.name }))]
+  const roleOptions = [{ value: "", label: "Select Role" }, ...roles.map(r => ({ value: r.id, label: r.name }))]
 
   return (
     <div style={{ padding: 28 }}>
@@ -1392,7 +1367,7 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
                       {assignments.map(a => (
                         <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                           <td style={{ padding: "10px 14px", fontWeight: 600 }}>
-                            {getUserName(a)}
+                            {a.profiles?.full_name || a.user_id?.slice(0, 8) + "…"}
                           </td>
                           <td style={{ padding: "10px 14px" }}>{a.projects?.name || "—"}</td>
                           <td style={{ padding: "10px 14px" }}><StatusBadge status={a.user_roles?.name} /></td>
@@ -1429,9 +1404,8 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
 
       {/* Assign Project Modal — admin only */}
       {showAssignModal && isAdmin && (
-        <Modal title="Assign Project" onClose={() => { setShowAssignModal(false); setError("") }}>
+        <Modal title="Assign Project" onClose={() => setShowAssignModal(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {error && <p style={{ fontFamily: FONT, fontSize: 13, color: C.danger, background: "#FEE2E2", padding: "10px 14px", borderRadius: 8, margin: 0 }}>{error}</p>}
             <Select label="User" value={assignForm.user_id} onChange={e => setAssignForm(f => ({ ...f, user_id: e.target.value }))} required options={profileOptions} />
             <Select label="Project" value={assignForm.project_id} onChange={e => setAssignForm(f => ({ ...f, project_id: e.target.value }))} required options={projectOptions} />
             <Select label="Role" value={assignForm.role_id} onChange={e => setAssignForm(f => ({ ...f, role_id: e.target.value }))} required options={roleOptions} />
