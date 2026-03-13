@@ -582,11 +582,26 @@ const Projects = ({ user, projects, setProjects, notifications, onMarkAllRead })
 // After successful insert, the returned row's DB-computed total_cost is displayed.
 
 const WEATHER_OPTIONS = ["", "Sunny", "Cloudy", "Rainy", "Windy", "Foggy"]
-const FLOORS = ["", "Ground Floor", "First Floor", "Other Floors"]
+const FLOORS = ["", "Layout / Drawings", "Ground Floor", "First Floor", "Other Floors"]
 const STAGES_BY_FLOOR = {
-  "Ground Floor": ["Site Preparation", "Foundation & Footing", "Column Construction", "Beam & Slab", "Brickwork / Masonry", "Electrical Works", "Plumbing", "Site Plan", "Footing Layout", "Column Layout", "Floor Plan"],
-  "First Floor": ["Column Construction", "Beam & Slab", "Brickwork / Masonry", "Door Schedule", "Electrical Works", "Plumbing", "Floor Plan", "Brick Work", "Door/Window Schedule", "Electrical Layout", "Plumbing Layout"],
-  "Other Floors": ["Column Construction", "Beam & Slab", "Brickwork / Masonry", "Door Schedule", "Electrical Works", "Plumbing", "Floor Plan", "Brick Work", "Door/Window Schedule", "Electrical Layout", "Plumbing Layout"],
+  "Layout / Drawings": [
+    "Site Plan", "Footing Layout", "Column Layout",
+    "Floor Plan (Ground)", "Floor Plan (First)", "Floor Plan (Other)",
+    "Brick Work Layout", "Door & Window Layout", "Electrical Layout", "Plumbing Layout",
+  ],
+  "Ground Floor": [
+    "Site Preparation", "Excavation", "Foundation Work", "Plinth Work",
+    "Superstructure Work", "Roof Work", "Flooring Work", "Plastering",
+    "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+  ],
+  "First Floor": [
+    "Plinth Work", "Superstructure Work", "Roof Work", "Flooring Work",
+    "Plastering", "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+  ],
+  "Other Floors": [
+    "Plinth Work", "Superstructure Work", "Roof Work", "Flooring Work",
+    "Plastering", "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+  ],
 }
 
 const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead }) => {
@@ -993,8 +1008,20 @@ const Reports = ({ user, userRole, projects, reports, notifications, onMarkAllRe
   ]
 
   const STAGES_DATA = {
-    "Layout / Plan / Drawings": ["Site Plan", "Footing Layout", "Column Layout", "Floor Plan (Ground)", "Floor Plan (First)", "Floor Plan (Other)"],
-    "Execution": ["Site Preparation", "Brick Work (Ground)", "Brick Work (First)", "Brick Work (Other)", "Door/Window Schedule (Ground)", "Door/Window Schedule (First)", "Electrical Layout (Ground)", "Electrical Layout (First)", "Plumbing Layout"],
+    "Layout / Plan / Drawings": [
+      "Site Plan", "Footing Layout", "Column Layout",
+      "Floor Plan (Ground)", "Floor Plan (First)", "Floor Plan (Other)",
+      "Brick Work Layout", "Door & Window Layout", "Electrical Layout", "Plumbing Layout",
+    ],
+    "Execution — Ground Floor": [
+      "Site Preparation", "Excavation", "Foundation Work", "Plinth Work",
+      "Superstructure Work", "Roof Work", "Flooring Work", "Plastering",
+      "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+    ],
+    "Execution — First / Other Floors": [
+      "Plinth Work", "Superstructure Work", "Roof Work", "Flooring Work",
+      "Plastering", "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+    ],
   }
 
   return (
@@ -1096,26 +1123,46 @@ const Reports = ({ user, userRole, projects, reports, notifications, onMarkAllRe
           {tab === "Photos" && (
             <PhotosTab user={user} userRole={userRole} projects={projects} projFilter={projFilter} />
           )}
-          {tab === "Stages" && (
-            <div>
-              {Object.entries(STAGES_DATA).map(([group, stages]) => (
-                <div key={group} style={{ marginBottom: 28 }}>
-                  <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.navy, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `2px solid ${C.accent}`, paddingBottom: 8 }}>{group}</h3>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
-                    {stages.map(stage => {
-                      const count = reports.filter(r => r.stage === stage || r.stage?.includes(stage.split(" ")[0])).length
-                      return (
-                        <div key={stage} style={{ background: "#F8FAFC", borderRadius: 10, padding: "12px 16px", border: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontFamily: FONT, fontSize: 13, color: C.text, fontWeight: 500 }}>{stage}</span>
-                          {count > 0 ? <Badge label={`${count} report${count > 1 ? "s" : ""}`} color={C.success} bg="#D1FAE5" /> : <Badge label="No reports" color={C.textMuted} bg="#F1F5F9" />}
-                        </div>
-                      )
-                    })}
+          {tab === "Stages" && (() => {
+            // Count DPRs per stage; max count used to normalise progress bars across all groups
+            const allStages = Object.values(STAGES_DATA).flat()
+            const countMap = Object.fromEntries(allStages.map(s => [s, reports.filter(r => r.stage === s).length]))
+            const maxCount = Math.max(1, ...Object.values(countMap))
+            return (
+              <div>
+                {Object.entries(STAGES_DATA).map(([group, stages]) => (
+                  <div key={group} style={{ marginBottom: 36 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, paddingBottom: 10, borderBottom: `2px solid ${C.accent}` }}>
+                      <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.navy, margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>{group}</h3>
+                      <span style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
+                        {stages.filter(s => countMap[s] > 0).length}/{stages.length} stages active
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+                      {stages.map(stage => {
+                        const count = countMap[stage] || 0
+                        const pct = Math.round((count / maxCount) * 100)
+                        const barColor = count === 0 ? C.border : pct >= 60 ? C.success : C.accent
+                        return (
+                          <div key={stage} style={{ background: "#F8FAFC", borderRadius: 10, padding: "14px 16px", border: `1px solid ${count > 0 ? C.accent + "40" : C.border}` }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                              <span style={{ fontFamily: FONT, fontSize: 13, color: C.text, fontWeight: 600 }}>{stage}</span>
+                              <span style={{ fontFamily: FONT, fontSize: 11, fontWeight: 700, color: count > 0 ? C.success : C.textLight }}>
+                                {count > 0 ? `${count} DPR${count > 1 ? "s" : ""}` : "0 DPRs"}
+                              </span>
+                            </div>
+                            <div style={{ background: "#E2E8F0", borderRadius: 4, height: 6, overflow: "hidden" }}>
+                              <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 4, transition: "width 0.4s ease" }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>
