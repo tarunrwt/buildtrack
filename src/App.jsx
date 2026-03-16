@@ -598,6 +598,9 @@ const LocationPicker = ({ lat, lng, onChange }) => {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState("")
 
   useEffect(() => {
     loadLeaflet().then(L => {
@@ -629,14 +632,78 @@ const LocationPicker = ({ lat, lng, onChange }) => {
       map.on("click", e => placeMarker(e.latlng.lat, e.latlng.lng))
     })
     return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; markerRef.current = null } }
-  }, []) // mount only — changes handled by map events
+  }, [])
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return
+    setSearching(true)
+    setSearchError("")
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=1`,
+        { headers: { "Accept-Language": "en", "User-Agent": "BuildTrack/1.0" } }
+      )
+      const data = await res.json()
+      if (!data.length) { setSearchError("Location not found. Try a more specific name."); setSearching(false); return }
+      const { lat: lt, lon: lg } = data[0]
+      if (mapRef.current) {
+        mapRef.current.setView([parseFloat(lt), parseFloat(lg)], 16)
+        // trigger marker placement via a synthetic click
+        const L = window.L
+        const icon = L.divIcon({
+          html: `<div style="width:18px;height:18px;background:#F97316;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>`,
+          iconSize: [18, 18], iconAnchor: [9, 9], className: ""
+        })
+        if (markerRef.current) {
+          markerRef.current.setLatLng([parseFloat(lt), parseFloat(lg)])
+        } else {
+          markerRef.current = L.marker([parseFloat(lt), parseFloat(lg)], { icon, draggable: true }).addTo(mapRef.current)
+          markerRef.current.on("dragend", e => {
+            const p = e.target.getLatLng()
+            onChange(p.lat.toFixed(6), p.lng.toFixed(6))
+          })
+        }
+        onChange(parseFloat(lt).toFixed(6), parseFloat(lg).toFixed(6))
+      }
+    } catch {
+      setSearchError("Search failed. Check your connection and try again.")
+    }
+    setSearching(false)
+  }
 
   return (
     <div>
-      <label style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 6 }}>
-        Site Location <span style={{ color: C.textMuted, fontWeight: 400, textTransform: "none" }}>(click map to drop pin)</span>
+      <label style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>
+        Site Location
       </label>
+
+      {/* Search box */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => { setSearchQuery(e.target.value); setSearchError("") }}
+          onKeyDown={e => e.key === "Enter" && handleSearch()}
+          placeholder="Search location e.g. Srinagar Garhwal, Uttarakhand"
+          style={{ flex: 1, fontFamily: FONT, fontSize: 13, color: C.text, background: "#F8FAFC", border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none" }}
+        />
+        <button
+          onClick={handleSearch}
+          disabled={searching}
+          style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", opacity: searching ? 0.7 : 1 }}
+        >
+          {searching ? "Searching..." : "Search"}
+        </button>
+      </div>
+
+      {searchError && <p style={{ fontFamily: FONT, fontSize: 12, color: C.danger, margin: "0 0 6px" }}>{searchError}</p>}
+
+      <p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: "0 0 6px" }}>
+        Or click directly on the map to drop a pin
+      </p>
+
       <div ref={containerRef} style={{ width: "100%", height: 260, borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}` }} />
+
       {lat && lng && !isNaN(parseFloat(lat)) && (
         <p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: "5px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
           <MapPin size={11} /> {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}
