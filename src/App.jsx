@@ -1994,7 +1994,7 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
           </div>
           <div>
             <h2 style={{ fontFamily: FONT_HEADING, fontSize: 20, fontWeight: 800, color: C.text, margin: 0 }}>AI Assistant</h2>
-            <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0 }}>Powered by Llama 3.3 via OpenRouter · {projects?.length || 0} projects in context</p>
+            <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0 }}>Powered by Llama 3.3 via Groq · {projects?.length || 0} projects in context</p>
           </div>
         </div>
         <button onClick={() => setMessages([{ role: 'assistant', content: '👷 **BuildTrack AI Assistant** is ready.\n\nI have access to all your project data. Ask me anything or use the quick actions below.\n\nYou can write in English or Hindi.' }])}
