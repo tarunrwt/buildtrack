@@ -33,8 +33,6 @@ const C = {
 
 const fmt = n => n >= 10000000 ? `₹${(n / 10000000).toFixed(1)}Cr` : n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${(n || 0).toLocaleString("en-IN")}`
 
-// Professional role label — applied only in Sidebar user card.
-// Stored Supabase values are never changed, only the display text.
 const formatRole = role => ({
   admin:           "Admin",
   project_manager: "Project Manager",
@@ -452,11 +450,9 @@ const Auth = ({ onSuccess }) => {
       if (tab === "signin") {
         const { data, error: e } = await supabase.auth.signInWithPassword({ email, password: pass })
         if (e) throw e
-        // Role is fetched from DB in App root — not from frontend selection
         onSuccess(data.user)
       } else {
         if (!name) return setError("Please enter your name.")
-        // New signups always receive 'viewer' role — admin assigns roles later
         const { error: e } = await supabase.auth.signUp({ email, password: pass, options: { data: { full_name: name } } })
         if (e) throw e
         setSuccess(true)
@@ -567,11 +563,9 @@ const SatelliteMap = ({ lat, lng, projectName, height = 340 }) => {
       if (!containerRef.current || mapRef.current) return
       const map = L.map(containerRef.current).setView([parseFloat(lat), parseFloat(lng)], 17)
       mapRef.current = map
-      // Satellite tiles — Esri World Imagery (free, no API key)
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
         attribution: "Tiles © Esri", maxZoom: 19
       }).addTo(map)
-      // Custom orange pin
       const icon = L.divIcon({
         html: `<div style="width:20px;height:20px;background:#F97316;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35)"></div>`,
         iconSize: [20, 20], iconAnchor: [10, 20], className: ""
@@ -649,7 +643,6 @@ const LocationPicker = ({ lat, lng, onChange }) => {
       const { lat: lt, lon: lg } = data[0]
       if (mapRef.current) {
         mapRef.current.setView([parseFloat(lt), parseFloat(lg)], 16)
-        // trigger marker placement via a synthetic click
         const L = window.L
         const icon = L.divIcon({
           html: `<div style="width:18px;height:18px;background:#F97316;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>`,
@@ -677,8 +670,6 @@ const LocationPicker = ({ lat, lng, onChange }) => {
       <label style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>
         Site Location
       </label>
-
-      {/* Search box */}
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <input
           type="text"
@@ -696,15 +687,11 @@ const LocationPicker = ({ lat, lng, onChange }) => {
           {searching ? "Searching..." : "Search"}
         </button>
       </div>
-
       {searchError && <p style={{ fontFamily: FONT, fontSize: 12, color: C.danger, margin: "0 0 6px" }}>{searchError}</p>}
-
       <p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: "0 0 6px" }}>
         Or click directly on the map to drop a pin
       </p>
-
       <div ref={containerRef} style={{ width: "100%", height: 260, borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}` }} />
-
       {lat && lng && !isNaN(parseFloat(lat)) && (
         <p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: "5px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
           <MapPin size={11} /> {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}
@@ -829,11 +816,30 @@ const Projects = ({ user, projects, setProjects, notifications, onMarkAllRead, o
 // After successful insert, the returned row's DB-computed total_cost is displayed.
 
 const WEATHER_OPTIONS = ["", "Sunny", "Cloudy", "Rainy", "Windy", "Foggy"]
-const FLOORS = ["", "Ground Floor", "First Floor", "Other Floors"]
+
+// RESTORED: Full floor list including "Layout / Drawings" from the 4-day-old commit.
+const FLOORS = ["", "Layout / Drawings", "Ground Floor", "First Floor", "Other Floors"]
+
+// RESTORED: Detailed stage lists per floor from the 4-day-old commit.
 const STAGES_BY_FLOOR = {
-  "Ground Floor": ["Site Preparation", "Foundation & Footing", "Column Construction", "Beam & Slab", "Brickwork / Masonry", "Electrical Works", "Plumbing", "Site Plan", "Footing Layout", "Column Layout", "Floor Plan"],
-  "First Floor": ["Column Construction", "Beam & Slab", "Brickwork / Masonry", "Door Schedule", "Electrical Works", "Plumbing", "Floor Plan", "Brick Work", "Door/Window Schedule", "Electrical Layout", "Plumbing Layout"],
-  "Other Floors": ["Column Construction", "Beam & Slab", "Brickwork / Masonry", "Door Schedule", "Electrical Works", "Plumbing", "Floor Plan", "Brick Work", "Door/Window Schedule", "Electrical Layout", "Plumbing Layout"],
+  "Layout / Drawings": [
+    "Site Plan", "Footing Layout", "Column Layout",
+    "Floor Plan (Ground)", "Floor Plan (First)", "Floor Plan (Other)",
+    "Brick Work Layout", "Door & Window Layout", "Electrical Layout", "Plumbing Layout",
+  ],
+  "Ground Floor": [
+    "Site Preparation", "Excavation", "Foundation Work", "Plinth Work",
+    "Superstructure Work", "Roof Work", "Flooring Work", "Plastering",
+    "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+  ],
+  "First Floor": [
+    "Plinth Work", "Superstructure Work", "Roof Work", "Flooring Work",
+    "Plastering", "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+  ],
+  "Other Floors": [
+    "Plinth Work", "Superstructure Work", "Roof Work", "Flooring Work",
+    "Plastering", "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+  ],
 }
 
 const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead }) => {
@@ -842,8 +848,10 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
   const [submittedReport, setSubmittedReport] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  // RESTORED: Photo upload state from the 4-day-old commit.
+  const [photoFiles, setPhotoFiles] = useState([])
+  const [photoUploading, setPhotoUploading] = useState(false)
 
-  // Live total: computed in the UI from the 5 cost fields (for user visibility before submit)
   const liveTotal = ["labor_cost", "material_cost", "equipment_cost", "subcontractor_cost", "other_cost"]
     .reduce((s, k) => s + (parseFloat(form[k]) || 0), 0)
 
@@ -855,8 +863,6 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
       return setError("Please fill in Project, Date, Floor and Stage.")
     setSaving(true)
 
-    // CRITICAL: total_cost is intentionally excluded — it is a GENERATED ALWAYS column.
-    // Supabase computes it from the 5 cost fields automatically on insert.
     const payload = {
       project_id: form.project_id,
       user_id: user.id,
@@ -886,7 +892,31 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
 
     if (e) { setError(e.message); setSaving(false); return }
 
-    // Update reports state with DB-returned row (includes DB-computed total_cost)
+    // RESTORED: Photo upload logic from the 4-day-old commit.
+    if (photoFiles.length > 0) {
+      setPhotoUploading(true)
+      for (const file of photoFiles) {
+        const ext = file.name.split(".").pop()
+        const uniqueName = `${Math.random().toString(36).slice(2)}-${Date.now()}.${ext}`
+        const filePath = `${form.project_id}/${data.id}/${uniqueName}`
+        const { error: upErr } = await supabase.storage.from("dpr-photos").upload(filePath, file)
+        if (!upErr) {
+          const { data: urlData } = await supabase.storage.from("dpr-photos").createSignedUrl(filePath, 86400)
+          await supabase.from("dpr_photos").insert({
+            daily_report_id: data.id,
+            project_id: form.project_id,
+            user_id: user.id,
+            file_name: file.name,
+            file_path: filePath,
+            public_url: urlData?.signedUrl || null,
+            file_size: file.size,
+            mime_type: file.type,
+          })
+        }
+      }
+      setPhotoUploading(false)
+    }
+
     setReports(rs => [data, ...rs])
     setSubmittedReport(data)
     setSaving(false)
@@ -894,10 +924,10 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
 
   const handleReset = () => {
     setSubmittedReport(null)
+    setPhotoFiles([])
     setForm({ project_id: "", report_date: today, weather: "", floor: "", stage: "", manpower_count: "", machinery_used: "", work_completed: "", materials_used: "", safety_incidents: "", remarks: "", labor_cost: "0", material_cost: "0", equipment_cost: "0", subcontractor_cost: "0", other_cost: "0" })
   }
 
-  // Success screen shows the DB-returned total_cost as final truth
   if (submittedReport) return (
     <div style={{ padding: 28 }}>
       <TopBar title="Submit DPR" notifications={notifications} onMarkAllRead={onMarkAllRead} />
@@ -907,7 +937,6 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
         <p style={{ fontFamily: FONT, fontSize: 14, color: C.textMuted, margin: "0 0 24px" }}>
           Daily progress report for <strong>{submittedReport.projects?.name}</strong> saved successfully.
         </p>
-        {/* DB-computed total_cost displayed as final confirmed value */}
         <div style={{ background: C.accentLight, border: `1px solid ${C.accent}40`, borderRadius: 12, padding: "16px 28px", display: "inline-block", marginBottom: 28 }}>
           <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Total Cost Recorded</p>
           <p style={{ fontFamily: FONT_HEADING, fontSize: 32, fontWeight: 800, color: C.accent, margin: 0 }}>{fmt(submittedReport.total_cost)}</p>
@@ -955,23 +984,239 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
               <Input key={k} label={label} type="number" value={form[k]} onChange={e => f(k, e.target.value)} placeholder="0" />
             ))}
           </div>
-          {/* Live total: shown before submit for user reference — Supabase will confirm final value */}
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
             <span style={{ fontFamily: FONT, fontSize: 14, color: C.textMuted, fontWeight: 600 }}>Total Cost Today:</span>
             <span style={{ fontFamily: FONT_HEADING, fontSize: 24, fontWeight: 800, color: C.accent }}>{fmt(liveTotal)}</span>
           </div>
         </div>
+
+        {/* RESTORED: Site Photos section from the 4-day-old commit */}
+        <div style={{ background: "#F8FAFC", borderRadius: 12, padding: 20, border: `1px solid ${C.border}`, marginBottom: 24 }}>
+          <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Site Photos</h3>
+          <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: "0 0 16px" }}>Optional · up to 5 images · JPEG, PNG, WebP or HEIC · max 5MB each</p>
+          {photoFiles.length === 0 ? (
+            <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 10, padding: "28px 20px", cursor: "pointer", background: "#fff" }}>
+              <Camera size={28} color={C.textLight} />
+              <span style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, fontWeight: 500 }}>Click to select photos</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple style={{ display: "none" }}
+                onChange={e => setPhotoFiles(Array.from(e.target.files).slice(0, 5))} />
+            </label>
+          ) : (
+            <div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                {photoFiles.map((pf, i) => (
+                  <div key={i} style={{ position: "relative", width: 90, height: 90, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}`, flexShrink: 0 }}>
+                    <img src={URL.createObjectURL(pf)} alt={pf.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <button onClick={() => setPhotoFiles(prev => prev.filter((_, idx) => idx !== i))}
+                      style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.65)", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                      <X size={11} color="#fff" />
+                    </button>
+                  </div>
+                ))}
+                {photoFiles.length < 5 && (
+                  <label style={{ width: 90, height: 90, display: "flex", alignItems: "center", justifyContent: "center", border: `2px dashed ${C.border}`, borderRadius: 8, cursor: "pointer", flexShrink: 0, background: "#fff" }}>
+                    <Plus size={20} color={C.textLight} />
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple style={{ display: "none" }}
+                      onChange={e => setPhotoFiles(prev => [...prev, ...Array.from(e.target.files)].slice(0, 5))} />
+                  </label>
+                )}
+              </div>
+              <span style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted }}>{photoFiles.length} photo{photoFiles.length !== 1 ? "s" : ""} selected</span>
+            </div>
+          )}
+        </div>
+
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <Btn onClick={handleSubmit} disabled={saving} size="lg" icon={CheckCircle}>{saving ? "Submitting..." : "Submit Report"}</Btn>
+          <Btn onClick={handleSubmit} disabled={saving || photoUploading} size="lg" icon={CheckCircle}>
+            {photoUploading ? "Uploading photos..." : saving ? "Submitting..." : "Submit Report"}
+          </Btn>
         </div>
       </div>
     </div>
   )
 }
 
+// ─── Photos Tab ───────────────────────────────────────────────────────────────
+// RESTORED: Full PhotosTab component from the 4-day-old commit.
+// The current file had replaced this with an empty placeholder.
+
+const PhotosTab = ({ user, userRole, projects, projFilter }) => {
+  const [dprPhotos, setDprPhotos] = useState([])
+  const [galleryPhotos, setGalleryPhotos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [galleryFiles, setGalleryFiles] = useState([])
+  const [galleryProject, setGalleryProject] = useState("")
+  const [galleryCaption, setGalleryCaption] = useState("")
+  const [uploading, setUploading] = useState(false)
+  const [lightbox, setLightbox] = useState(null)
+
+  const isSiteEngineer = userRole === "site_engineer"
+
+  const signUrls = async (bucket, rows) => {
+    return Promise.all(rows.map(async row => {
+      if (!row.file_path) return row
+      const { data } = await supabase.storage.from(bucket).createSignedUrl(row.file_path, 3600)
+      return { ...row, signed_url: data?.signedUrl || null }
+    }))
+  }
+
+  const load = async () => {
+    setLoading(true)
+    const projectIds = projFilter === "All Projects" ? projects.map(p => p.id) : [projFilter]
+    if (projectIds.length === 0) { setLoading(false); return }
+    const [{ data: dp }, { data: gp }] = await Promise.all([
+      supabase.from("dpr_photos").select("*, daily_reports(report_date)").in("project_id", projectIds).order("created_at", { ascending: false }),
+      supabase.from("project_photos").select("*, profiles(full_name)").in("project_id", projectIds).order("created_at", { ascending: false }),
+    ])
+    const [signedDpr, signedGallery] = await Promise.all([
+      signUrls("dpr-photos", dp || []),
+      signUrls("project-gallery", gp || []),
+    ])
+    setDprPhotos(signedDpr)
+    setGalleryPhotos(signedGallery)
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [projFilter])
+
+  const handleGalleryUpload = async () => {
+    if (!galleryProject || galleryFiles.length === 0) return
+    setUploading(true)
+    for (const file of galleryFiles) {
+      const ext = file.name.split(".").pop()
+      const uniqueName = `${Math.random().toString(36).slice(2)}-${Date.now()}.${ext}`
+      const filePath = `${galleryProject}/${uniqueName}`
+      const { error: upErr } = await supabase.storage.from("project-gallery").upload(filePath, file)
+      if (!upErr) {
+        const { data: urlData } = await supabase.storage.from("project-gallery").createSignedUrl(filePath, 3600)
+        await supabase.from("project_photos").insert({
+          project_id: galleryProject,
+          user_id: user.id,
+          file_name: file.name,
+          file_path: filePath,
+          public_url: urlData?.signedUrl || null,
+          caption: galleryCaption || null,
+          file_size: file.size,
+          mime_type: file.type,
+        })
+      }
+    }
+    setUploading(false)
+    setShowUploadModal(false)
+    setGalleryFiles([]); setGalleryProject(""); setGalleryCaption("")
+    load()
+  }
+
+  const PhotoGrid = ({ photos, emptyMsg }) => {
+    if (photos.length === 0) return <Empty message={emptyMsg} />
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+        {photos.map(ph => (
+          <div key={ph.id} onClick={() => setLightbox({ url: ph.signed_url, caption: ph.caption || ph.file_name })}
+            style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}`, cursor: "pointer", background: "#F8FAFC" }}>
+            {ph.signed_url
+              ? <img src={ph.signed_url} alt={ph.file_name} style={{ width: "100%", height: 130, objectFit: "cover", display: "block" }} />
+              : <div style={{ width: "100%", height: 130, display: "flex", alignItems: "center", justifyContent: "center" }}><Camera size={24} color={C.textLight} /></div>}
+            <div style={{ padding: "8px 10px" }}>
+              <p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {ph.caption || ph.daily_reports?.report_date || ph.file_name}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (loading) return <Spinner />
+
+  return (
+    <div>
+      <div style={{ marginBottom: 36 }}>
+        <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>DPR Photos</h3>
+        <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: "0 0 16px" }}>Photos attached to Daily Progress Reports</p>
+        <PhotoGrid photos={dprPhotos} emptyMsg="No DPR photos yet" />
+      </div>
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Project Gallery</h3>
+            <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0 }}>Standalone site photos not tied to a specific DPR</p>
+          </div>
+          {isSiteEngineer && (
+            <Btn icon={Camera} size="sm" onClick={() => setShowUploadModal(true)}>Upload Photos</Btn>
+          )}
+        </div>
+        <PhotoGrid photos={galleryPhotos} emptyMsg="No gallery photos yet" />
+      </div>
+
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "relative", maxWidth: 860, width: "100%" }}>
+            <img src={lightbox.url} alt={lightbox.caption} style={{ width: "100%", maxHeight: "80vh", objectFit: "contain", borderRadius: 12 }} />
+            {lightbox.caption && <p style={{ fontFamily: FONT, fontSize: 13, color: "#E2E8F0", textAlign: "center", marginTop: 12 }}>{lightbox.caption}</p>}
+            <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: -12, right: -12, background: "#fff", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
+              <X size={16} color={C.text} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showUploadModal && (
+        <Modal title="Upload Site Photos" onClose={() => { setShowUploadModal(false); setGalleryFiles([]) }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Select label="Project" required value={galleryProject} onChange={e => setGalleryProject(e.target.value)}
+              options={[{ value: "", label: "Select Project" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
+            <div>
+              <label style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>Photos <span style={{ color: C.danger }}>*</span></label>
+              {galleryFiles.length === 0 ? (
+                <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, border: `2px dashed ${C.border}`, borderRadius: 10, padding: "24px 20px", cursor: "pointer", background: "#F8FAFC" }}>
+                  <Upload size={24} color={C.textLight} />
+                  <span style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted }}>Click to select up to 5 photos</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple style={{ display: "none" }}
+                    onChange={e => setGalleryFiles(Array.from(e.target.files).slice(0, 5))} />
+                </label>
+              ) : (
+                <div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                    {galleryFiles.map((f, i) => (
+                      <div key={i} style={{ position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}>
+                        <img src={URL.createObjectURL(f)} alt={f.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <button onClick={() => setGalleryFiles(prev => prev.filter((_, idx) => idx !== i))}
+                          style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.65)", border: "none", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                          <X size={10} color="#fff" />
+                        </button>
+                      </div>
+                    ))}
+                    {galleryFiles.length < 5 && (
+                      <label style={{ width: 72, height: 72, display: "flex", alignItems: "center", justifyContent: "center", border: `2px dashed ${C.border}`, borderRadius: 8, cursor: "pointer", background: "#F8FAFC" }}>
+                        <Plus size={18} color={C.textLight} />
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple style={{ display: "none" }}
+                          onChange={e => setGalleryFiles(prev => [...prev, ...Array.from(e.target.files)].slice(0, 5))} />
+                      </label>
+                    )}
+                  </div>
+                  <span style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted }}>{galleryFiles.length} photo{galleryFiles.length !== 1 ? "s" : ""} selected</span>
+                </div>
+              )}
+            </div>
+            <Input label="Caption (optional)" value={galleryCaption} onChange={e => setGalleryCaption(e.target.value)} placeholder="e.g. Foundation work completed" />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+              <Btn variant="secondary" onClick={() => { setShowUploadModal(false); setGalleryFiles([]) }}>Cancel</Btn>
+              <Btn icon={Upload} disabled={uploading || !galleryProject || galleryFiles.length === 0} onClick={handleGalleryUpload}>{uploading ? "Uploading..." : "Upload"}</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 // ─── Reports ──────────────────────────────────────────────────────────────────
 
-const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
+// RESTORED: user and userRole props added back so PhotosTab can check role permissions.
+const Reports = ({ user, userRole, projects, reports, notifications, onMarkAllRead }) => {
   const [tab, setTab] = useState("Overview")
   const [projFilter, setProjFilter] = useState("All Projects")
 
@@ -1002,9 +1247,22 @@ const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
     { name: "Other", value: reports.reduce((s, r) => s + (r.other_cost || 0), 0), color: C.charcoal },
   ]
 
+  // RESTORED: Full 3-group STAGES_DATA with detailed stage lists from the 4-day-old commit.
   const STAGES_DATA = {
-    "Layout / Plan / Drawings": ["Site Plan", "Footing Layout", "Column Layout", "Floor Plan (Ground)", "Floor Plan (First)", "Floor Plan (Other)"],
-    "Execution": ["Site Preparation", "Brick Work (Ground)", "Brick Work (First)", "Brick Work (Other)", "Door/Window Schedule (Ground)", "Door/Window Schedule (First)", "Electrical Layout (Ground)", "Electrical Layout (First)", "Plumbing Layout"],
+    "Layout / Plan / Drawings": [
+      "Site Plan", "Footing Layout", "Column Layout",
+      "Floor Plan (Ground)", "Floor Plan (First)", "Floor Plan (Other)",
+      "Brick Work Layout", "Door & Window Layout", "Electrical Layout", "Plumbing Layout",
+    ],
+    "Execution — Ground Floor": [
+      "Site Preparation", "Excavation", "Foundation Work", "Plinth Work",
+      "Superstructure Work", "Roof Work", "Flooring Work", "Plastering",
+      "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+    ],
+    "Execution — First / Other Floors": [
+      "Plinth Work", "Superstructure Work", "Roof Work", "Flooring Work",
+      "Plastering", "Door & Window Work", "Electrical & Plumbing Work", "Painting & Finishing Work",
+    ],
   }
 
   return (
@@ -1103,29 +1361,52 @@ const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
               )}
             </div>
           )}
+
+          {/* RESTORED: Full PhotosTab replacing the empty placeholder. */}
           {tab === "Photos" && (
-            <Empty message="Photo uploads coming soon" sub="Use the DPR form to attach site photos once storage is configured" />
+            <PhotosTab user={user} userRole={userRole} projects={projects} projFilter={projFilter} />
           )}
-          {tab === "Stages" && (
-            <div>
-              {Object.entries(STAGES_DATA).map(([group, stages]) => (
-                <div key={group} style={{ marginBottom: 28 }}>
-                  <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.navy, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `2px solid ${C.accent}`, paddingBottom: 8 }}>{group}</h3>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
-                    {stages.map(stage => {
-                      const count = reports.filter(r => r.stage === stage || r.stage?.includes(stage.split(" ")[0])).length
-                      return (
-                        <div key={stage} style={{ background: "#F8FAFC", borderRadius: 10, padding: "12px 16px", border: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontFamily: FONT, fontSize: 13, color: C.text, fontWeight: 500 }}>{stage}</span>
-                          {count > 0 ? <Badge label={`${count} report${count > 1 ? "s" : ""}`} color={C.success} bg="#D1FAE5" /> : <Badge label="No reports" color={C.textMuted} bg="#F1F5F9" />}
-                        </div>
-                      )
-                    })}
+
+          {/* RESTORED: Detailed Stages tab with progress bars driven by DPR count from the 4-day-old commit. */}
+          {tab === "Stages" && (() => {
+            const allStages = Object.values(STAGES_DATA).flat()
+            const countMap = Object.fromEntries(allStages.map(s => [s, reports.filter(r => r.stage === s).length]))
+            const maxCount = Math.max(1, ...Object.values(countMap))
+            return (
+              <div>
+                {Object.entries(STAGES_DATA).map(([group, stages]) => (
+                  <div key={group} style={{ marginBottom: 36 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, paddingBottom: 10, borderBottom: `2px solid ${C.accent}` }}>
+                      <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.navy, margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>{group}</h3>
+                      <span style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
+                        {stages.filter(s => countMap[s] > 0).length}/{stages.length} stages active
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+                      {stages.map(stage => {
+                        const count = countMap[stage] || 0
+                        const pct = Math.round((count / maxCount) * 100)
+                        const barColor = count === 0 ? C.border : pct >= 60 ? C.success : C.accent
+                        return (
+                          <div key={stage} style={{ background: "#F8FAFC", borderRadius: 10, padding: "14px 16px", border: `1px solid ${count > 0 ? C.accent + "40" : C.border}` }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                              <span style={{ fontFamily: FONT, fontSize: 13, color: C.text, fontWeight: 600 }}>{stage}</span>
+                              <span style={{ fontFamily: FONT, fontSize: 11, fontWeight: 700, color: count > 0 ? C.success : C.textLight }}>
+                                {count > 0 ? `${count} DPR${count > 1 ? "s" : ""}` : "0 DPRs"}
+                              </span>
+                            </div>
+                            <div style={{ background: "#E2E8F0", borderRadius: 4, height: 6, overflow: "hidden" }}>
+                              <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 4, transition: "width 0.4s ease" }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>
@@ -1133,8 +1414,6 @@ const Reports = ({ projects, reports, notifications, onMarkAllRead }) => {
 }
 
 // ─── Materials ────────────────────────────────────────────────────────────────
-// FIX: Contextual action button changes per active tab.
-// Add Usage and Add Purchase modals are now fully functional.
 
 const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
   const [tab, setTab] = useState("Materials")
@@ -1146,7 +1425,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState("")
 
-  // Separate form state per modal type
   const [matForm, setMatForm] = useState({ name: "", category: "", unit: "", cost_per_unit: "", current_stock: "", min_stock_level: "", supplier_name: "", supplier_contact: "" })
   const [usageForm, setUsageForm] = useState({ material_id: "", quantity_used: "", project_id: "", usage_date: new Date().toISOString().split("T")[0], notes: "" })
   const [purchaseForm, setPurchaseForm] = useState({ material_id: "", quantity_purchased: "", cost_per_unit: "", supplier_name: "", purchase_date: new Date().toISOString().split("T")[0], invoice_number: "" })
@@ -1165,7 +1443,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
     load()
   }, [])
 
-  // Add Material
   const handleAddMaterial = async () => {
     if (!matForm.name || !matForm.category || !matForm.unit) return
     setSaving(true)
@@ -1181,11 +1458,10 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
     setMatForm({ name: "", category: "", unit: "", cost_per_unit: "", current_stock: "", min_stock_level: "", supplier_name: "", supplier_contact: "" })
   }
 
-  // Add Usage — stock auto-decremented by DB trigger
   const handleAddUsage = async () => {
     if (!usageForm.material_id || !usageForm.quantity_used || !usageForm.usage_date) return
     setSaving(true)
-    const { data, error } = await supabase.from("material_usage").insert({
+    const { data } = await supabase.from("material_usage").insert({
       material_id: usageForm.material_id,
       project_id: usageForm.project_id || null,
       user_id: user.id,
@@ -1195,7 +1471,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
     }).select("*, materials(name), projects(name)").single()
     if (data) {
       setUsage(us => [data, ...us])
-      // Refresh material stock after trigger has run
       const { data: updatedMat } = await supabase.from("materials").select("*").eq("id", usageForm.material_id).single()
       if (updatedMat) setMaterials(ms => ms.map(m => m.id === updatedMat.id ? updatedMat : m))
     }
@@ -1203,7 +1478,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
     setUsageForm({ material_id: "", quantity_used: "", project_id: "", usage_date: new Date().toISOString().split("T")[0], notes: "" })
   }
 
-  // Add Purchase — stock auto-incremented by DB trigger
   const handleAddPurchase = async () => {
     if (!purchaseForm.material_id || !purchaseForm.quantity_purchased || !purchaseForm.purchase_date) return
     setSaving(true)
@@ -1221,7 +1495,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
     }).select("*, materials(name)").single()
     if (data) {
       setPurchases(ps => [data, ...ps])
-      // Refresh material stock after trigger has run
       const { data: updatedMat } = await supabase.from("materials").select("*").eq("id", purchaseForm.material_id).single()
       if (updatedMat) setMaterials(ms => ms.map(m => m.id === updatedMat.id ? updatedMat : m))
     }
@@ -1229,7 +1502,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
     setPurchaseForm({ material_id: "", quantity_purchased: "", cost_per_unit: "", supplier_name: "", purchase_date: new Date().toISOString().split("T")[0], invoice_number: "" })
   }
 
-  // Contextual button: label and handler change based on active tab
   const ctxButton = {
     "Materials":  { label: "Add Material",  action: () => setShowModal(true) },
     "Usage Log":  { label: "Add Usage",     action: () => setShowModal(true) },
@@ -1295,7 +1567,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
                   )}
                 </div>
               )}
-
               {tab === "Usage Log" && (
                 usage.length === 0 ? <Empty message="No usage records yet" sub="Click Add Usage to log material consumption" /> : (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
@@ -1310,7 +1581,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
                   </table>
                 )
               )}
-
               {tab === "Purchases" && (
                 purchases.length === 0 ? <Empty message="No purchases recorded yet" sub="Click Add Purchase to record a procurement" /> : (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
@@ -1327,7 +1597,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
                   </table>
                 )
               )}
-
               {tab === "Analytics" && (
                 materials.length === 0 ? <Empty message="Add materials to see analytics" /> : (
                   <div>
@@ -1345,7 +1614,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
         </div>
       </div>
 
-      {/* Add Material Modal */}
       {showModal && tab === "Materials" && (
         <Modal title="Add Material" onClose={() => setShowModal(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1366,8 +1634,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
           </div>
         </Modal>
       )}
-
-      {/* Add Usage Modal */}
       {showModal && tab === "Usage Log" && (
         <Modal title="Add Usage" onClose={() => setShowModal(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1385,8 +1651,6 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
           </div>
         </Modal>
       )}
-
-      {/* Add Purchase Modal */}
       {showModal && tab === "Purchases" && (
         <Modal title="Add Purchase" onClose={() => setShowModal(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1522,8 +1786,6 @@ const Financials = ({ projects, reports, notifications, onMarkAllRead }) => {
 }
 
 // ─── User Management ──────────────────────────────────────────────────────────
-// FIX: Admin-only Assign Project button. Assignment modal stores to user_project_assignments.
-// Table now shows assigned user, project, and role.
 
 const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead }) => {
   const [assignments, setAssignments] = useState([])
@@ -1539,9 +1801,6 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
 
   useEffect(() => {
     const load = async () => {
-      // NOTE: profiles is NOT joined here — user_project_assignments.user_id
-      // references auth.users, not profiles, so Supabase cannot resolve that FK.
-      // User names are resolved from allProfiles state instead.
       const queries = [
         supabase.from("user_project_assignments")
           .select("*, projects(name), user_roles(name, description, permissions)")
@@ -1565,8 +1824,6 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
       return setError("Please select a user, project, and role.")
     setSaving(true)
 
-    // FIX: profiles join removed — no FK from user_project_assignments to profiles.
-    // The DB trigger sync_profile_role_on_assignment will update profiles.role automatically.
     const { data, error: e } = await supabase
       .from("user_project_assignments")
       .insert({
@@ -1580,7 +1837,6 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
 
     if (e) { setError(e.message); setSaving(false); return }
 
-    // Enrich the new row with user name from allProfiles (already in state)
     const enriched = {
       ...data,
       _userName: allProfiles.find(p => p.id === assignForm.user_id)?.full_name || assignForm.user_id.slice(0, 8) + "…"
@@ -1591,11 +1847,9 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
     setAssignForm({ user_id: "", project_id: "", role_id: "" })
   }
 
-  // Resolve user name: first from enriched _userName, then from allProfiles lookup
   const getUserName = (a) =>
     a._userName || allProfiles.find(p => p.id === a.user_id)?.full_name || a.user_id?.slice(0, 8) + "…"
 
-  // Only show the 3 assignable roles — exclude Admin from the dropdown
   const assignableRoles = roles.filter(r => r.name !== "Admin")
 
   const profileOptions = [{ value: "", label: "Select User" }, ...allProfiles.filter(p => p.role !== "admin").map(p => ({ value: p.id, label: p.full_name || p.id.slice(0, 8) }))]
@@ -1609,7 +1863,6 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
         subtitle="Roles and project assignments"
         notifications={notifications}
         onMarkAllRead={onMarkAllRead}
-        // Assign Project button is visible to admin only
         actions={isAdmin ? <Btn onClick={() => setShowAssignModal(true)} icon={UserPlus}>Assign Project</Btn> : null}
       />
       {loading ? <Spinner /> : (
@@ -1638,9 +1891,7 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
                     <tbody>
                       {assignments.map(a => (
                         <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                          <td style={{ padding: "10px 14px", fontWeight: 600 }}>
-                            {getUserName(a)}
-                          </td>
+                          <td style={{ padding: "10px 14px", fontWeight: 600 }}>{getUserName(a)}</td>
                           <td style={{ padding: "10px 14px" }}>{a.projects?.name || "—"}</td>
                           <td style={{ padding: "10px 14px" }}><StatusBadge status={a.user_roles?.name} /></td>
                           <td style={{ padding: "10px 14px", color: C.textMuted }}>{new Date(a.assigned_at).toLocaleDateString("en-IN")}</td>
@@ -1674,7 +1925,6 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
         </div>
       )}
 
-      {/* Assign Project Modal — admin only */}
       {showAssignModal && isAdmin && (
         <Modal title="Assign Project" onClose={() => { setShowAssignModal(false); setError("") }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1732,7 +1982,6 @@ const ProjectDetail = ({ projectId, user, userRole, projects, setProjects, repor
     onBack()
   }
 
-  // Stage progress for this project
   const stageCount = {}
   projReports.forEach(r => { if (r.stage) stageCount[r.stage] = (stageCount[r.stage] || 0) + 1 })
   const maxCount = Math.max(...Object.values(stageCount), 1)
@@ -1740,14 +1989,12 @@ const ProjectDetail = ({ projectId, user, userRole, projects, setProjects, repor
 
   return (
     <div style={{ padding: 28 }}>
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
         <button onClick={onBack} style={{ background: "#F1F5F9", border: "none", borderRadius: 10, padding: "8px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: FONT, fontSize: 13, color: C.textMuted, fontWeight: 600 }}>
           <ArrowLeft size={14} /> Back to Projects
         </button>
       </div>
 
-      {/* Project title strip */}
       <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: "20px 24px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
         <div>
           <h1 style={{ fontFamily: FONT_HEADING, fontSize: 26, fontWeight: 800, color: C.text, margin: "0 0 8px" }}>{project.name}</h1>
@@ -1765,7 +2012,6 @@ const ProjectDetail = ({ projectId, user, userRole, projects, setProjects, repor
         </div>
       </div>
 
-      {/* Financial KPIs */}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
         <KPICard label="Total Budget" value={fmt(project.total_cost)} sub="project budget" icon={DollarSign} accent={C.info} />
         <KPICard label="Amount Spent" value={fmt(project.total_spent || 0)} sub={`${pct}% used`} icon={TrendingUp} accent={C.accent} />
@@ -1773,7 +2019,6 @@ const ProjectDetail = ({ projectId, user, userRole, projects, setProjects, repor
         <KPICard label="DPRs Filed" value={projReports.length} sub="daily reports" icon={FileText} accent={C.charcoal} />
       </div>
 
-      {/* Satellite Map */}
       <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 20, marginBottom: 20 }}>
         <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 8 }}>
           <MapPin size={15} color={C.accent} /> Site Location
@@ -1781,7 +2026,6 @@ const ProjectDetail = ({ projectId, user, userRole, projects, setProjects, repor
         <SatelliteMap lat={project.latitude} lng={project.longitude} projectName={project.name} height={340} />
       </div>
 
-      {/* Recent DPRs */}
       <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 20, marginBottom: 20 }}>
         <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Recent Daily Reports</h3>
         {projReports.length === 0 ? <Empty message="No reports yet" sub="Submit a DPR for this project to see it here" /> : (
@@ -1811,7 +2055,6 @@ const ProjectDetail = ({ projectId, user, userRole, projects, setProjects, repor
         )}
       </div>
 
-      {/* Stage Progress */}
       {activeStages.length > 0 && (
         <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 20 }}>
           <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Stage Progress</h3>
@@ -1833,7 +2076,6 @@ const ProjectDetail = ({ projectId, user, userRole, projects, setProjects, repor
         </div>
       )}
 
-      {/* Edit modal */}
       {showEdit && (
         <Modal title="Edit Project" onClose={() => setShowEdit(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1862,7 +2104,6 @@ const buildAgentContext = (projects, reports, materials = []) => {
   if (!projects?.length) return 'No project data available.'
   const lines = []
 
-  // Projects summary
   lines.push('=== PROJECTS ===')
   projects.forEach(p => {
     const pct = p.total_cost > 0 ? Math.round(((p.total_spent || 0) / p.total_cost) * 100) : 0
@@ -1874,7 +2115,6 @@ const buildAgentContext = (projects, reports, materials = []) => {
     lines.push('')
   })
 
-  // Recent DPRs
   if (reports?.length) {
     lines.push('=== RECENT DAILY PROGRESS REPORTS (last 30) ===')
     reports.slice(0, 30).forEach(r => {
@@ -1882,7 +2122,6 @@ const buildAgentContext = (projects, reports, materials = []) => {
     })
     lines.push('')
 
-    // Reporting gap detection
     lines.push('=== REPORTING ACTIVITY (last 7 days) ===')
     const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
     projects.forEach(p => {
@@ -1892,7 +2131,6 @@ const buildAgentContext = (projects, reports, materials = []) => {
     lines.push('')
   }
 
-  // Materials stock
   if (materials?.length) {
     lines.push('=== MATERIAL STOCK ===')
     materials.forEach(m => {
@@ -1902,7 +2140,6 @@ const buildAgentContext = (projects, reports, materials = []) => {
     lines.push('')
   }
 
-  // Risk summary
   lines.push('=== RISK FLAGS ===')
   const risks = []
   projects.forEach(p => {
@@ -1920,8 +2157,6 @@ const buildAgentContext = (projects, reports, materials = []) => {
 }
 
 // ─── AI Assistant Page ────────────────────────────────────────────────────────
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-
 const QUICK_ACTIONS = [
   { label: '📊 Summarise all projects', prompt: 'Give me a concise summary of all my projects — current status, budget health, and key progress points.' },
   { label: '⚠️ Flag risks', prompt: 'Scan all my project data and flag any risks — budget overruns, low material stock, projects with no recent DPRs, or anything else that needs attention.' },
@@ -1953,7 +2188,6 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
 
     try {
       const context = buildAgentContext(projects, reports, materials)
-      // Only send last 10 messages to keep token count manageable
       const apiMessages = newMessages.slice(-10).map(m => ({ role: m.role, content: m.content }))
 
       const res = await fetch(`https://zdcuroihwhtixolkxgbj.supabase.co/functions/v1/ai-agent`, {
@@ -1965,7 +2199,7 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
       const data = await res.json()
       if (!res.ok || data.error) {
         setError(data.error || 'Something went wrong. Please try again.')
-        setMessages(prev => prev.slice(0, -1)) // remove user message on error
+        setMessages(prev => prev.slice(0, -1))
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
       }
@@ -1977,7 +2211,6 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
     setLoading(false)
   }
 
-  // Render markdown-lite: bold, bullets, line breaks
   const renderContent = (text) => {
     return text
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -1986,7 +2219,6 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: 0 }}>
-      {/* Header */}
       <div style={{ padding: '20px 28px 16px', borderBottom: `1px solid ${C.border}`, background: C.card, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ background: C.accent, borderRadius: 10, padding: 8, display: 'flex' }}>
@@ -2003,7 +2235,6 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
         </button>
       </div>
 
-      {/* Quick actions */}
       <div style={{ padding: '14px 28px', borderBottom: `1px solid ${C.border}`, background: C.card, display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
         {QUICK_ACTIONS.map(a => (
           <button key={a.label} onClick={() => sendMessage(a.prompt)} disabled={loading}
@@ -2013,7 +2244,6 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
         ))}
       </div>
 
-      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16, background: C.bg }}>
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -2058,7 +2288,6 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div style={{ padding: '16px 28px', borderTop: `1px solid ${C.border}`, background: C.card, flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <textarea
@@ -2084,8 +2313,6 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
 }
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
-// FIX: Role is fetched from profiles table in DB after login.
-// Frontend-selected role is never trusted.
 
 export default function App() {
   const [screen, setScreen] = useState("landing")
@@ -2106,14 +2333,11 @@ export default function App() {
     document.head.appendChild(link)
   }, [])
 
-  // Fetch role from profiles table — single source of truth for RBAC
   const fetchProfile = async (uid) => {
     const { data } = await supabase.from("profiles").select("role").eq("id", uid).single()
     if (data?.role) setUserRole(data.role)
   }
 
-  // Fetch project IDs this user is assigned to (non-admin only).
-  // Uses the SECURITY DEFINER DB function to avoid RLS recursion.
   const fetchAssignedProjects = async (role) => {
     if (role === "admin") { setAssignedProjectIds([]); return }
     const { data } = await supabase.rpc("get_assigned_project_ids")
@@ -2146,8 +2370,6 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // After role and assignments are loaded, fetch data scoped by RLS automatically.
-  // visibleProjects filters the UI dropdowns for non-admin users.
   useEffect(() => {
     if (!user) return
     const loadData = async () => {
@@ -2163,7 +2385,6 @@ export default function App() {
     loadData()
   }, [user])
 
-  // Fetch assigned project IDs whenever role resolves (non-admin only)
   useEffect(() => {
     if (!user || !userRole || userRole === "viewer") return
     fetchAssignedProjects(userRole)
@@ -2190,8 +2411,6 @@ export default function App() {
   if (screen === "landing") return <Landing onLogin={() => setScreen("auth")} />
   if (screen === "auth") return <Auth onSuccess={(u) => { setUser(u); fetchProfile(u.id); setScreen("app") }} />
 
-  // Admin sees all projects. Non-admin sees only their assigned projects.
-  // RLS enforces this at the DB level too — this is a UI-layer complement.
   const visibleProjects = userRole === "admin"
     ? projects
     : projects.filter(p => assignedProjectIds.includes(p.id))
@@ -2207,7 +2426,8 @@ export default function App() {
     dashboard:        <Dashboard user={user} setPage={setPage} projects={visibleProjects} reports={reports} />,
     projects:         <Projects user={user} projects={visibleProjects} setProjects={setProjects} onCardClick={handleCardClick} {...sharedProps} />,
     "submit-dpr":     <SubmitDPR user={user} projects={visibleProjects} setReports={setReports} {...sharedProps} />,
-    reports:          <Reports projects={visibleProjects} reports={reports} {...sharedProps} />,
+    // RESTORED: user and userRole passed to Reports so PhotosTab works correctly.
+    reports:          <Reports user={user} userRole={userRole} projects={visibleProjects} reports={reports} {...sharedProps} />,
     materials:        <Materials user={user} projects={visibleProjects} {...sharedProps} />,
     financials:       <Financials projects={visibleProjects} reports={reports} {...sharedProps} />,
     "ai-assistant":   <AIAssistant projects={visibleProjects} reports={reports} materials={[]} {...sharedProps} />,
