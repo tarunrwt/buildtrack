@@ -1956,7 +1956,7 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
       // Only send last 10 messages to keep token count manageable
       const apiMessages = newMessages.slice(-10).map(m => ({ role: m.role, content: m.content }))
 
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-agent`, {
+      const res = await fetch(`https://zdcuroihwhtixolkxgbj.supabase.co/functions/v1/ai-agent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMessages, context }),
