@@ -149,12 +149,12 @@ The app starts at `http://localhost:5173`.
 
 ### Database Setup
 
-Apply the migrations in `supabase/` in numeric order against your Supabase project using the SQL editor or Supabase CLI:
+Apply the migrations in `supabase/migrations/` in numeric order against your Supabase project using the SQL editor or Supabase CLI:
 
 ```
-supabase/006_add_site_issues.sql
-supabase/007_add_labourer_attendance.sql
-supabase/008_add_viewer_accountant_roles.sql
+supabase/migrations/006_add_site_issues.sql
+supabase/migrations/007_add_labourer_attendance.sql
+supabase/migrations/008_add_viewer_accountant_roles.sql
 ```
 
 ### Build for Production
@@ -183,10 +183,10 @@ buildtrack/
 │       ├── financialEngine.ts  # Single source of truth — all financial calcs
 │       └── reportEngine.ts     # Single source of truth — report aggregations
 ├── supabase/
-│   ├── 006_add_site_issues.sql
-│   ├── 007_add_labourer_attendance.sql
-│   ├── 008_add_viewer_accountant_roles.sql
-│   └── README.md               # Schema reference
+│   └── migrations/
+│       ├── 006_add_site_issues.sql
+│       ├── 007_add_labourer_attendance.sql
+│       └── 008_add_viewer_accountant_roles.sql
 └── docs/
     └── screenshots/            # App screenshots for documentation
 ```
