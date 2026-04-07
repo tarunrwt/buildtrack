@@ -10,6 +10,7 @@
 [![React](https://img.shields.io/badge/React_18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
 [![Vite](https://img.shields.io/badge/Vite_5-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 </div>
 
@@ -98,12 +99,12 @@ Every data point flows through a single system — from the mason on-site to the
 
 ## Database Architecture
 
-12 tables with full Row Level Security. All RLS policies use `(SELECT auth.uid())` for per-query evaluation (not per-row) to avoid performance degradation.
+12 tables with full Row Level Security. All RLS policies use `(SELECT auth.uid())` for per-query evaluation (not per-row) to avoid performance degradation at scale.
 
 | Table | Purpose |
 |-------|---------|
 | `projects` | Core project records with budget and GPS |
-| `daily_reports` | DPR submissions — `total_cost` is a GENERATED ALWAYS column |
+| `daily_reports` | DPR submissions — `total_cost` is a `GENERATED ALWAYS` column |
 | `dpr_photos` | Photo metadata linked to reports and projects |
 | `materials` | Inventory master list with stock levels |
 | `material_usage` | Usage log — auto-decrements stock via trigger |
@@ -122,7 +123,7 @@ Every data point flows through a single system — from the mason on-site to the
 ### Prerequisites
 
 - Node.js 18+
-- A [Supabase](https://supabase.com) project with the schema applied
+- A [Supabase](https://supabase.com) project with the schema applied (see `supabase/` for migration files)
 
 ### Installation
 
@@ -146,6 +147,16 @@ npm run dev
 
 The app starts at `http://localhost:5173`.
 
+### Database Setup
+
+Apply the migrations in `supabase/` in numeric order against your Supabase project using the SQL editor or Supabase CLI:
+
+```
+supabase/006_add_site_issues.sql
+supabase/007_add_labourer_attendance.sql
+supabase/008_add_viewer_accountant_roles.sql
+```
+
 ### Build for Production
 
 ```bash
@@ -163,17 +174,21 @@ buildtrack/
 ├── vite.config.js          # Vite configuration
 ├── package.json
 ├── .env.example            # Environment template (safe to commit)
+├── LICENSE                 # MIT
 ├── src/
 │   ├── main.jsx            # React root mount
 │   ├── App.jsx             # All pages, components, and routing
 │   └── lib/
-│       ├── supabase.js     # Supabase client initialisation
+│       ├── supabase.js         # Supabase client initialisation
 │       ├── financialEngine.ts  # Single source of truth — all financial calcs
 │       └── reportEngine.ts     # Single source of truth — report aggregations
 ├── supabase/
-│   └── README.md           # Schema reference
+│   ├── 006_add_site_issues.sql
+│   ├── 007_add_labourer_attendance.sql
+│   ├── 008_add_viewer_accountant_roles.sql
+│   └── README.md               # Schema reference
 └── docs/
-    └── screenshots/        # App screenshots for documentation
+    └── screenshots/            # App screenshots for documentation
 ```
 
 ---
@@ -182,34 +197,29 @@ buildtrack/
 
 | Decision | Rationale |
 |----------|-----------|
-| **Single-file React app** | MVP-phase simplicity — all 3800+ lines in `App.jsx` with clear section headers. Production refactor would split by feature module. |
+| **Single-file React app** | MVP-phase simplicity — all pages and components in `App.jsx` with clear section headers. Production refactor would split by feature module. |
 | **No CSS framework** | Full control over the industrial design language (dark navy sidebar, construction-orange accents, Barlow typeface). |
 | **Generated columns over app-side calc** | `daily_reports.total_cost` is computed by PostgreSQL — self-healing, tamper-proof, zero client-side drift. |
 | **Centralised financial engine** | `financialEngine.ts` eliminates dual computation paths. Dashboard, Reports, and Financials all show identical numbers. |
+| **Centralised report engine** | `reportEngine.ts` provides exact-match stage counts and manpower trends — no fuzzy string matching. |
 | **RLS with `(SELECT auth.uid())`** | Evaluated once per query, not once per row. Critical for tables with thousands of DPR records. |
-
----
-
-## Development Methodology
-
-This project was built through **AI-assisted iterative development** — describing features in plain language, reviewing generated code, identifying defects, and directing corrections through structured prompts.
-
-Key skills developed:
-- **Prompt engineering** — writing technical specifications as prompts with constraints, edge cases, and output formats
-- **System design** — relational schema design with triggers, RLS, generated columns, and lookup tables
-- **Debugging** — diagnosing React hooks violations, auth race conditions, and state management bugs
-- **Code review** — identifying dual computation paths, over-budget colour logic errors, and loading deadlocks
 
 ---
 
 ## Roadmap
 
-- [ ] **Error Boundary** — Wrap main content to prevent blank-screen crashes
+- [ ] **Error Boundary** — Wrap main content to prevent blank-screen crashes on uncaught exceptions
 - [ ] **Realtime subscriptions** — Live updates via Supabase Realtime on DPRs and projects
 - [ ] **Offline-first DPR** — Service worker for field submission without connectivity
 - [ ] **Mobile app** — React Native wrapper for site engineers
-- [ ] **PDF reports** — Server-side PDF generation with charts
+- [ ] **PDF reports** — Server-side PDF generation with embedded charts
 - [ ] **Multi-tenant** — Organisation-level isolation for construction firms
+
+---
+
+## License
+
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
 
 ---
 
@@ -223,6 +233,6 @@ Key skills developed:
 
 <div align="center">
 
-*Built with ☕ and structured prompts — 2026*
+*Built for India's construction industry — 2026*
 
 </div>
