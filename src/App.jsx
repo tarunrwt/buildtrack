@@ -3708,6 +3708,7 @@ export default function App() {
   const [notifications,      setNotifications]      = useState([])
   const [loading,            setLoading]            = useState(true)
   const [activeProjectId,    setActiveProjectId]    = useState(null)
+  const [scrollProgress,     setScrollProgress]     = useState(0)
 
   // Load Google Fonts once on mount
   useEffect(() => {
@@ -3829,7 +3830,7 @@ export default function App() {
                       />,
   }
 
-  const [scrollProgress, setScrollProgress] = useState(0)
+
 
   return (
     <>
