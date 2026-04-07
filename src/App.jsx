@@ -32,7 +32,8 @@ import {
   ArrowLeft, Edit3, MoreVertical, Sun, CloudRain,
   Cloud, User, ShoppingCart, Activity, Layers,
   ChevronRight, AlertCircle, RefreshCw, Upload,
-  HardHat, Wrench, Truck, Loader, UserPlus, Bot, Send, Menu
+  HardHat, Wrench, Truck, Loader, UserPlus, Bot, Send, Menu, Database,
+  Image, UserCheck, UserX, ClipboardList, Shield, Key
 } from "lucide-react"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -778,16 +779,21 @@ const WeatherIcon = ({ w }) => {
 // Add new top-level pages here. The Sidebar and PAGES router both consume NAV.
 // ─────────────────────────────────────────────────────────────────────────────
 
+const ALL_ROLES = ["admin","project_manager","accountant","site_engineer","viewer"]
+const FIELD_ROLES = ["admin","project_manager","site_engineer"]
+const MGMT_ROLES  = ["admin","project_manager","accountant"]
+
 const NAV = [
-  { key: "dashboard",    label: "Dashboard",        icon: LayoutDashboard },
-  { key: "projects",     label: "Projects",          icon: FolderOpen      },
-  { key: "submit-dpr",   label: "Submit DPR",        icon: FileText        },
-  { key: "labour",       label: "Labour Register",   icon: Wrench          },
-  { key: "reports",      label: "Reports",           icon: BarChart2       },
-  { key: "materials",    label: "Materials",         icon: Package         },
-  { key: "financials",   label: "Financials",        icon: DollarSign      },
-  { key: "ai-assistant", label: "AI Assistant",      icon: Bot             },
-  { key: "users",        label: "User Management",   icon: Users           },
+  { key: "dashboard",    label: "Dashboard",        icon: LayoutDashboard, roles: ALL_ROLES },
+  { key: "projects",     label: "Projects",          icon: FolderOpen,      roles: ALL_ROLES },
+  { key: "submit-dpr",   label: "Submit DPR",        icon: FileText,        roles: FIELD_ROLES },
+  { key: "site-issues",  label: "Site Issues",       icon: AlertTriangle,   roles: FIELD_ROLES },
+  { key: "labour",       label: "Labour Register",   icon: Wrench,          roles: ["admin","project_manager","accountant","site_engineer"] },
+  { key: "reports",      label: "Reports",           icon: BarChart2,       roles: ALL_ROLES },
+  { key: "materials",    label: "Materials",         icon: Package,         roles: ["admin","project_manager","accountant","site_engineer"] },
+  { key: "financials",   label: "Financials",        icon: DollarSign,      roles: MGMT_ROLES },
+  { key: "ai-assistant", label: "AI Assistant",      icon: Bot,             roles: ["admin","project_manager","accountant","site_engineer"] },
+  { key: "users",        label: "User Management",   icon: Users,           roles: ["admin"] },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -795,7 +801,7 @@ const NAV = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Fixed left-hand navigation sidebar. Renders the brand logo, nav links, and user footer. */
-const Sidebar = ({ page, setPage, user, userRole, onSignOut }) => (
+const Sidebar = ({ page, setPage, user, userRole, onSignOut, onProfileClick }) => (
   <div style={{
     width: 240, minWidth: 240, background: C.sidebar,
     height: "100vh", display: "flex", flexDirection: "column",
@@ -816,7 +822,7 @@ const Sidebar = ({ page, setPage, user, userRole, onSignOut }) => (
 
     {/* Navigation links */}
     <nav style={{ flex: 1, padding: "12px 12px", overflowY: "auto" }}>
-      {NAV.map(({ key, label, icon: Icon }) => {
+      {NAV.filter(n => n.roles.includes(userRole)).map(({ key, label, icon: Icon }) => {
         const active = page === key
         return (
           <button key={key} onClick={() => setPage(key)} style={{
@@ -837,7 +843,9 @@ const Sidebar = ({ page, setPage, user, userRole, onSignOut }) => (
 
     {/* User footer */}
     <div style={{ padding: "16px 12px", borderTop: "1px solid #1E3A5F" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 4 }}>
+      <div onClick={onProfileClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 4, cursor: "pointer", borderRadius: 10, transition: "all 0.15s" }}
+        onMouseEnter={e => e.currentTarget.style.background = C.sidebarHover}
+        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
         <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <User size={16} color="#fff" />
         </div>
@@ -933,7 +941,7 @@ const MobileNav = ({ page, setPage, user, userRole, onSignOut }) => {
               <button onClick={() => setMenuOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={20} color={C.textMuted} /></button>
             </div>
             <nav style={{ flex: 1, padding: 12, overflowY: "auto" }}>
-              {NAV.map(({ key, label, icon: Icon }) => {
+              {NAV.filter(n => n.roles.includes(userRole)).map(({ key, label, icon: Icon }) => {
                 const active = page === key;
                 return (
                   <button key={key} onClick={() => { setPage(key); setMenuOpen(false); }} style={{
@@ -2697,6 +2705,12 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
     setPurchaseForm({ material_id: "", quantity_purchased: "", cost_per_unit: "", supplier_name: "", purchase_date: new Date().toISOString().split("T")[0], invoice_number: "" })
   }
 
+  const handleDeleteMaterial = async (id) => {
+    if (!confirm("Delete this material? This cannot be undone.")) return
+    const { error } = await supabase.from("materials").delete().eq("id", id)
+    if (!error) setMaterials(ms => ms.filter(m => m.id !== id))
+  }
+
   const ctxButton = { "Materials": { label: "Add Material", action: () => setShowModal(true) }, "Usage Log": { label: "Add Usage", action: () => setShowModal(true) }, "Purchases": { label: "Add Purchase", action: () => setShowModal(true) }, "Analytics": null }[tab]
   const filtered   = materials.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.category.toLowerCase().includes(search.toLowerCase()))
   const totalValue = materials.reduce((s, m) => s + ((m.current_stock || 0) * (m.cost_per_unit || 0)), 0)
@@ -2707,8 +2721,19 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
 
   return (
     <div style={{ padding: 28 }}>
-      <TopBar title="Materials & Inventory" subtitle={`${materials.length} materials tracked`} notifications={notifications} onMarkAllRead={onMarkAllRead}
+      <TopBar title="Materials & Inventory" subtitle={`${materials.length} item${materials.length !== 1 ? "s" : ""} in inventory`} notifications={notifications} onMarkAllRead={onMarkAllRead}
         actions={ctxButton ? <Btn onClick={ctxButton.action} icon={Plus}>{ctxButton.label}</Btn> : null} />
+
+      {/* Guard: No projects */}
+      {(projects || []).length === 0 && (
+        <div style={{ marginTop: 32, background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: 24, display: "flex", alignItems: "center", gap: 16 }}>
+          <AlertTriangle size={22} color={C.warning} style={{ flexShrink: 0 }} />
+          <div>
+            <p style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.text, margin: 0 }}>No active projects</p>
+            <p style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, margin: "4px 0 0" }}>Material usage tracking requires at least one project. Your inventory catalog is shown below but usage cannot be logged until a project is created.</p>
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", margin: "24px 0" }}>
         <KPICard label="Total Items"      value={materials.length} sub="in inventory"    icon={Package}       accent={C.info}   />
         <KPICard label="Inventory Value"  value={fmt(totalValue)}  sub="current stock"   icon={DollarSign}    accent={C.success}/>
@@ -2730,7 +2755,15 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
                           <div key={m.id} style={{ background: "#F8FAFC", borderRadius: 12, padding: "16px 18px", border: `1px solid ${isLow ? C.danger + "40" : C.border}` }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                               <div><p style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>{m.name}</p><StatusBadge status={m.category} /></div>
-                              {isLow && <Badge label="Low Stock" color={C.danger} bg="#FEE2E2" />}
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                {isLow && <Badge label="Low Stock" color={C.danger} bg="#FEE2E2" />}
+                                <button onClick={() => handleDeleteMaterial(m.id)} title="Delete material"
+                                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, borderRadius: 6, color: C.danger, display: "flex", alignItems: "center" }}
+                                  onMouseEnter={e => e.currentTarget.style.background = "#FEE2E2"}
+                                  onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
                               <div><p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0 }}>Current Stock</p><p style={{ fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 700, color: isLow ? C.danger : C.text, margin: 0 }}>{(m.current_stock || 0).toLocaleString()} {m.unit}</p></div>
@@ -2964,99 +2997,327 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [saving,        setSaving]        = useState(false)
   const [error,         setError]         = useState("")
+  const [success,       setSuccess]       = useState("")
   const [assignForm,    setAssignForm]    = useState({ user_id: "", project_id: "", role_id: "" })
+  const [activeTab,     setActiveTab]     = useState("directory")
+  const [searchQuery,   setSearchQuery]   = useState("")
+  const [revokeTarget,  setRevokeTarget]  = useState(null)
 
   const isAdmin = userRole === "admin"
 
-  useEffect(() => {
-    const load = async () => {
-      const queries = [
-        supabase.from("user_project_assignments").select("*, projects(name), user_roles(name, description, permissions)").order("assigned_at", { ascending: false }),
-        supabase.from("user_roles").select("*"),
-      ]
-      if (isAdmin) queries.push(supabase.from("profiles").select("id, full_name, role"))
-      const results = await Promise.all(queries)
-      setAssignments(results[0].data || [])
-      setRoles(results[1].data || [])
-      if (isAdmin && results[2]) setAllProfiles(results[2].data || [])
-      setLoading(false)
-    }
-    load()
-  }, [isAdmin])
+  const ROLE_OPTIONS = [
+    { value: "project_manager", label: "Project Manager" },
+    { value: "accountant",      label: "Accountant" },
+    { value: "site_engineer",   label: "Site Engineer" },
+    { value: "viewer",          label: "Viewer" },
+  ]
 
+  const loadData = async () => {
+    const queries = [
+      supabase.from("user_project_assignments").select("*, projects(name), user_roles(name, description, permissions)").order("assigned_at", { ascending: false }),
+      supabase.from("user_roles").select("*"),
+    ]
+    if (isAdmin) queries.push(supabase.from("profiles").select("id, full_name, role, created_at"))
+    const results = await Promise.all(queries)
+    setAssignments(results[0].data || [])
+    setRoles(results[1].data || [])
+    if (isAdmin && results[2]) setAllProfiles(results[2].data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadData() }, [isAdmin])
+
+  // ── Role Change with Notification ──────────────────────────────────────────
+  const handleRoleChange = async (profileId, newRole) => {
+    if (profileId === user.id) return // can't change own role
+    const { error: e } = await supabase.from("profiles").update({ role: newRole }).eq("id", profileId)
+    if (e) return
+    // Send notification to user
+    await supabase.from("notifications").insert({
+      user_id: profileId,
+      title: "Role Updated",
+      message: `Your role has been changed to ${formatRole(newRole)} by Admin.`,
+      type: "role_change",
+    })
+    setAllProfiles(ps => ps.map(p => p.id === profileId ? { ...p, role: newRole } : p))
+    setSuccess(`Role updated to ${formatRole(newRole)}`)
+    setTimeout(() => setSuccess(""), 3000)
+  }
+
+  // ── Assign Project ─────────────────────────────────────────────────────────
   const handleAssign = async () => {
     setError("")
     if (!assignForm.user_id || !assignForm.project_id || !assignForm.role_id)
       return setError("Please select a user, project, and role.")
     setSaving(true)
-    const { data, error: e } = await supabase.from("user_project_assignments").insert({ user_id: assignForm.user_id, project_id: assignForm.project_id, role_id: assignForm.role_id, assigned_by: user.id }).select("*, projects(name), user_roles(name, description, permissions)").single()
+    const { data, error: e } = await supabase.from("user_project_assignments").insert({
+      user_id: assignForm.user_id, project_id: assignForm.project_id,
+      role_id: assignForm.role_id, assigned_by: user.id,
+    }).select("*, projects(name), user_roles(name, description, permissions)").single()
     if (e) { setError(e.message); setSaving(false); return }
+    // Notify the assigned user
+    const projName = projects.find(p => p.id === assignForm.project_id)?.name || "a project"
+    await supabase.from("notifications").insert({
+      user_id: assignForm.user_id,
+      title: "Project Assigned",
+      message: `You have been assigned to "${projName}" by Admin.`,
+      type: "assignment",
+    })
     setAssignments(a => [{ ...data, _userName: allProfiles.find(p => p.id === assignForm.user_id)?.full_name || assignForm.user_id.slice(0, 8) + "…" }, ...a])
     setSaving(false); setShowAssignModal(false)
     setAssignForm({ user_id: "", project_id: "", role_id: "" })
   }
 
-  const getUserName    = a => a._userName || allProfiles.find(p => p.id === a.user_id)?.full_name || a.user_id?.slice(0, 8) + "…"
+  // ── Revoke Assignment ──────────────────────────────────────────────────────
+  const handleRevoke = async () => {
+    if (!revokeTarget) return
+    setSaving(true)
+    await supabase.from("user_project_assignments").delete().eq("id", revokeTarget.id)
+    // Notify the user
+    await supabase.from("notifications").insert({
+      user_id: revokeTarget.user_id,
+      title: "Assignment Removed",
+      message: `You have been removed from "${revokeTarget.projects?.name || "a project"}" by Admin.`,
+      type: "assignment",
+    })
+    setAssignments(a => a.filter(x => x.id !== revokeTarget.id))
+    setSaving(false); setRevokeTarget(null)
+  }
+
+  const getUserName = a => a._userName || allProfiles.find(p => p.id === a.user_id)?.full_name || a.user_id?.slice(0, 8) + "…"
   const assignableRoles = roles.filter(r => r.name !== "Admin")
-  const profileOptions  = [{ value: "", label: "Select User" }, ...allProfiles.filter(p => p.role !== "admin").map(p => ({ value: p.id, label: p.full_name || p.id.slice(0, 8) }))]
-  const projectOptions  = [{ value: "", label: "Select Project" }, ...(projects || []).map(p => ({ value: p.id, label: p.name }))]
-  const roleOptions     = [{ value: "", label: "Select Role" }, ...assignableRoles.map(r => ({ value: r.id, label: r.name }))]
+  const profileOptions = [{ value: "", label: "Select User" }, ...allProfiles.filter(p => p.role !== "admin").map(p => ({ value: p.id, label: p.full_name || p.id.slice(0, 8) }))]
+  const projectOptions = [{ value: "", label: "Select Project" }, ...(projects || []).map(p => ({ value: p.id, label: p.name }))]
+  const roleOptions = [{ value: "", label: "Select Role" }, ...assignableRoles.map(r => ({ value: r.id, label: r.name }))]
+
+  // Filter profiles by search
+  const filteredProfiles = allProfiles.filter(p =>
+    (p.full_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.role || "").toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const getAssignmentCount = (profileId) => assignments.filter(a => a.user_id === profileId).length
+
+  const USER_TABS = [
+    { key: "directory", label: "Team Directory", icon: Users },
+    { key: "assignments", label: "Project Assignments", icon: FolderOpen },
+    { key: "roles", label: "Roles & Permissions", icon: Shield },
+  ]
 
   return (
     <div style={{ padding: 28 }}>
-      <TopBar title="User Management" subtitle="Roles and project assignments" notifications={notifications} onMarkAllRead={onMarkAllRead}
-        actions={isAdmin ? <Btn onClick={() => setShowAssignModal(true)} icon={UserPlus}>Assign Project</Btn> : null} />
+      <TopBar title="User Management" subtitle="Team directory, roles & project assignments" notifications={notifications} onMarkAllRead={onMarkAllRead}
+        actions={isAdmin ? (
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn onClick={() => setShowAssignModal(true)} icon={UserPlus}>Assign Project</Btn>
+          </div>
+        ) : null} />
+
+      {success && <p style={{ fontFamily: FONT, fontSize: 13, color: C.success, background: "#D1FAE5", padding: "10px 14px", borderRadius: 8, marginTop: 16 }}>{success}</p>}
+
+      {/* Tab Navigation */}
+      <div style={{ display: "flex", gap: 4, marginTop: 24, background: "#F1F5F9", borderRadius: 12, padding: 4 }}>
+        {USER_TABS.map(t => {
+          const active = activeTab === t.key
+          const Icon = t.icon
+          return (
+            <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+              flex: 1, padding: "12px 16px", borderRadius: 10, border: "none", cursor: "pointer",
+              background: active ? C.card : "transparent", color: active ? C.accent : C.textMuted,
+              fontFamily: FONT, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center",
+              justifyContent: "center", gap: 8, transition: "all 0.2s ease",
+              boxShadow: active ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
+            }}>
+              <Icon size={16} /> {t.label}
+            </button>
+          )
+        })}
+      </div>
+
       {loading ? <Spinner /> : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24, marginTop: 24 }}>
-          <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-            <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Project Assignments</h3>
-              <Badge label={`${assignments.length} assignment${assignments.length !== 1 ? "s" : ""}`} color={C.info} bg="#DBEAFE" />
-            </div>
-            <div style={{ padding: 24 }}>
-              {assignments.length === 0
-                ? <Empty message="No assignments yet" sub={isAdmin ? "Click Assign Project to assign a team member" : "No project assignments have been created yet"} />
-                : (
+        <>
+          {/* ── Tab 1: Team Directory ──────────────────────────────────────── */}
+          {activeTab === "directory" && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", gap: 14, marginBottom: 16 }}>
+                <KPICard label="Total Users" value={allProfiles.length} icon={Users} accent={C.info} />
+                <KPICard label="Admins" value={allProfiles.filter(p => p.role === "admin").length} icon={Shield} accent={C.accent} />
+                <KPICard label="Active Roles" value={new Set(allProfiles.map(p => p.role)).size} icon={Activity} accent={C.success} />
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <Input placeholder="Search by name or role..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} icon={Search} />
+              </div>
+
+              <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                {filteredProfiles.length === 0 ? (
+                  <div style={{ padding: 28 }}><Empty message="No users found" /></div>
+                ) : (
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
-                      <thead><tr style={{ background: "#F8FAFC" }}>{["User","Project","Role","Assigned At"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
-                      <tbody>{assignments.map(a => (<tr key={a.id} style={{ borderBottom: `1px solid ${C.border}` }}><td style={{ padding: "10px 14px", fontWeight: 600 }}>{getUserName(a)}</td><td style={{ padding: "10px 14px" }}>{a.projects?.name || "—"}</td><td style={{ padding: "10px 14px" }}><StatusBadge status={a.user_roles?.name} /></td><td style={{ padding: "10px 14px", color: C.textMuted }}>{new Date(a.assigned_at).toLocaleDateString("en-IN")}</td></tr>))}</tbody>
+                      <thead><tr style={{ background: "#F8FAFC" }}>
+                        {["User", "Current Role", "Projects Assigned", "Joined", "Actions"].map(h => (
+                          <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>{filteredProfiles.map(p => {
+                        const isSelf = p.id === user.id
+                        const assignCount = getAssignmentCount(p.id)
+                        return (
+                          <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                            <td style={{ padding: "10px 14px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <div style={{ width: 36, height: 36, borderRadius: "50%", background: p.role === "admin" ? C.accent : "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  <User size={16} color={p.role === "admin" ? "#fff" : C.textMuted} />
+                                </div>
+                                <div>
+                                  <p style={{ fontWeight: 600, color: C.text, margin: 0 }}>{p.full_name || "Unnamed User"}</p>
+                                  {isSelf && <span style={{ fontSize: 10, color: C.accent, fontWeight: 700 }}>YOU</span>}
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ padding: "10px 14px" }}>
+                              {isAdmin && !isSelf ? (
+                                <select value={p.role} onChange={e => handleRoleChange(p.id, e.target.value)}
+                                  style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, fontFamily: FONT, fontWeight: 600, background: "#F8FAFC", cursor: "pointer" }}>
+                                  {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                </select>
+                              ) : (
+                                <StatusBadge status={formatRole(p.role)} />
+                              )}
+                            </td>
+                            <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                              {p.role === "admin"
+                                ? <Badge label="All Projects" color="#6366F1" bg="#EDE9FE" />
+                                : <Badge label={`${assignCount} project${assignCount !== 1 ? "s" : ""}`} color={assignCount > 0 ? C.info : C.textMuted} bg={assignCount > 0 ? "#DBEAFE" : "#F1F5F9"} />
+                              }
+                            </td>
+                            <td style={{ padding: "10px 14px", color: C.textMuted }}>
+                              {p.created_at ? new Date(p.created_at).toLocaleDateString("en-IN") : "—"}
+                            </td>
+                            <td style={{ padding: "10px 14px" }}>
+                              {isSelf ? <span style={{ fontSize: 11, color: C.textMuted }}>—</span> : (
+                                <button onClick={() => { setAssignForm(f => ({ ...f, user_id: p.id })); setShowAssignModal(true); setActiveTab("directory") }}
+                                  style={{ background: "none", border: "none", color: C.info, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
+                                  Assign Project
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}</tbody>
                     </table>
                   </div>
                 )}
+              </div>
             </div>
-          </div>
-          <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-            <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}` }}>
-              <h3 style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Available Roles</h3>
-            </div>
-            <div style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
-              {roles.map(r => (
-                <div key={r.id} style={{ background: "#F8FAFC", borderRadius: 12, padding: "16px 18px", border: `1px solid ${C.border}` }}>
-                  <div style={{ marginBottom: 8 }}><StatusBadge status={r.name} /></div>
-                  <p style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, margin: "0 0 10px" }}>{r.description}</p>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {(Array.isArray(r.permissions) ? r.permissions : JSON.parse(r.permissions || "[]")).map(perm => (
-                      <span key={perm} style={{ fontFamily: FONT, fontSize: 11, background: C.accentLight, color: C.accent, padding: "2px 8px", borderRadius: 6, fontWeight: 600 }}>{perm}</span>
-                    ))}
-                  </div>
+          )}
+
+          {/* ── Tab 2: Project Assignments ─────────────────────────────────── */}
+          {activeTab === "assignments" && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>All Project Assignments</h3>
+                  <Badge label={`${assignments.length} assignment${assignments.length !== 1 ? "s" : ""}`} color={C.info} bg="#DBEAFE" />
                 </div>
-              ))}
+                <div style={{ padding: 24 }}>
+                  {assignments.length === 0
+                    ? <Empty message="No assignments yet" sub="Click Assign Project to assign a team member" />
+                    : (
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
+                          <thead><tr style={{ background: "#F8FAFC" }}>
+                            {["User", "Project", "Role", "Assigned At", "Actions"].map(h => (
+                              <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>
+                            ))}
+                          </tr></thead>
+                          <tbody>{assignments.map(a => (
+                            <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                              <td style={{ padding: "10px 14px", fontWeight: 600 }}>{getUserName(a)}</td>
+                              <td style={{ padding: "10px 14px" }}>{a.projects?.name || "—"}</td>
+                              <td style={{ padding: "10px 14px" }}><StatusBadge status={a.user_roles?.name} /></td>
+                              <td style={{ padding: "10px 14px", color: C.textMuted }}>{new Date(a.assigned_at).toLocaleDateString("en-IN")}</td>
+                              <td style={{ padding: "10px 14px" }}>
+                                {isAdmin && (
+                                  <button onClick={() => setRevokeTarget(a)}
+                                    style={{ background: "none", border: "none", color: C.danger, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
+                                    Revoke
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
+                    )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+
+          {/* ── Tab 3: Roles & Permissions ─────────────────────────────────── */}
+          {activeTab === "roles" && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}` }}>
+                  <h3 style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Roles & Permissions</h3>
+                </div>
+                <div style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+                  {roles.map(r => {
+                    const memberCount = allProfiles.filter(p => formatRole(p.role) === r.name).length
+                    return (
+                      <div key={r.id} style={{ background: "#F8FAFC", borderRadius: 12, padding: "18px 20px", border: `1px solid ${C.border}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                          <StatusBadge status={r.name} />
+                          <Badge label={`${memberCount} user${memberCount !== 1 ? "s" : ""}`} color={C.textMuted} bg="#E2E8F0" />
+                        </div>
+                        <p style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, margin: "0 0 12px" }}>{r.description}</p>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {(Array.isArray(r.permissions) ? r.permissions : JSON.parse(r.permissions || "[]")).map(perm => (
+                            <span key={perm} style={{ fontFamily: FONT, fontSize: 11, background: C.accentLight, color: C.accent, padding: "2px 8px", borderRadius: 6, fontWeight: 600 }}>{perm}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
+
+      {/* Assign Modal */}
       {showAssignModal && isAdmin && (
         <Modal title="Assign Project" onClose={() => { setShowAssignModal(false); setError("") }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {error && <p style={{ fontFamily: FONT, fontSize: 13, color: C.danger, background: "#FEE2E2", padding: "10px 14px", borderRadius: 8, margin: 0 }}>{error}</p>}
             <Select label="User"    value={assignForm.user_id}    onChange={e => setAssignForm(f => ({ ...f, user_id:    e.target.value }))} required options={profileOptions} />
             <Select label="Project" value={assignForm.project_id} onChange={e => setAssignForm(f => ({ ...f, project_id: e.target.value }))} required options={projectOptions} />
-            <Select label="Role"    value={assignForm.role_id}    onChange={e => setAssignForm(f => ({ ...f, role_id:    e.target.value }))} required options={roleOptions}   />
+            <Select label="Role"    value={assignForm.role_id}    onChange={e => setAssignForm(f => ({ ...f, role_id:    e.target.value }))} required options={roleOptions} />
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
               <Btn variant="secondary" onClick={() => setShowAssignModal(false)}>Cancel</Btn>
               <Btn onClick={handleAssign} disabled={saving} icon={UserPlus}>{saving ? "Assigning..." : "Assign"}</Btn>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Revoke Confirmation Modal */}
+      {revokeTarget && (
+        <Modal title="Revoke Assignment" onClose={() => setRevokeTarget(null)} width={440}>
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontFamily: FONT, fontSize: 14, color: C.text, margin: "0 0 12px" }}>
+              Remove <strong>{getUserName(revokeTarget)}</strong> from <strong>{revokeTarget.projects?.name || "this project"}</strong>?
+            </p>
+            <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: 12, fontSize: 13, fontFamily: FONT, color: C.warning }}>
+              The user will lose access to this project and will be notified.
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <Btn variant="secondary" onClick={() => setRevokeTarget(null)}>Cancel</Btn>
+            <Btn variant="danger" onClick={handleRevoke} disabled={saving} icon={Trash2}>{saving ? "Revoking..." : "Revoke Access"}</Btn>
           </div>
         </Modal>
       )}
@@ -3222,29 +3483,13 @@ const ProjectDetail = ({ projectId, user, userRole, projects, setProjects, repor
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE — Labour Register
 //
-// Tracks daily attendance by labour category and trade, computes the
-// daily wage bill per project, and stores records in the `labour_attendance`
-// Supabase table introduced in migration `add_labour_attendance`.
-//
-// Data model:
-//  - category:       one of four tiers (unskilled → highly_skilled)
-//  - trade:          specific role within the category (e.g. Raj Mistri)
-//  - worker_count:   number of workers of this trade present today
-//  - daily_wage_rate: rate per worker per day (₹)
-//  - total_wage:     GENERATED ALWAYS AS (worker_count × daily_wage_rate)
-//
-// ML relevance (documented for portfolio):
-//  This structured dataset is the precise training corpus required to build
-//  a labour attendance prediction model. By collecting attendance by category,
-//  trade, project, and date we create the features (day_of_week, project_stage,
-//  weather, trade_type) needed for a future regression model.
+// Tabbed interface:
+//   Tab 1: Bulk Entry (existing category-based attendance)
+//   Tab 2: Manage Workers (individual labourer CRUD with photos)
+//   Tab 3: Mark Attendance (per-person daily checklist)
+//   Tab 4: Attendance Report (calendar matrix)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Four-tier Indian construction labour classification per the
- * Building and Other Construction Workers (BOCW) Act, 1996.
- * Default wage rates reflect approximate Uttarakhand market rates (2025–26).
- */
 const CATEGORY_OPTIONS = [
   { value: "unskilled",      label: "Unskilled Labour",             defaultWage: 380 },
   { value: "semi_skilled",   label: "Semi-Skilled Labour",          defaultWage: 500 },
@@ -3252,10 +3497,6 @@ const CATEGORY_OPTIONS = [
   { value: "highly_skilled", label: "Highly Skilled / Supervisor",  defaultWage: 950 },
 ]
 
-/**
- * Trades grouped by labour category.
- * The cascading select in the form filters this list based on the selected category.
- */
 const TRADE_BY_CATEGORY = {
   unskilled:      ["General Helper", "Material Carrier", "Site Cleaner", "Excavation Worker", "Mixer Helper"],
   semi_skilled:   ["Bar Bender", "Scaffolder", "Tile Helper", "Painting Helper", "Formwork Helper"],
@@ -3263,224 +3504,798 @@ const TRADE_BY_CATEGORY = {
   highly_skilled: ["Head Mistri", "Fitter Foreman", "Pump Operator", "Site Supervisor", "Crane Operator"],
 }
 
-const LabourRegister = ({ user, projects, notifications, onMarkAllRead }) => {
+const ATTENDANCE_TABS = [
+  { key: "bulk",    label: "Bulk Entry",        icon: Users },
+  { key: "manage",  label: "Manage Workers",    icon: UserPlus },
+  { key: "mark",    label: "Mark Attendance",   icon: ClipboardList },
+  { key: "report",  label: "Attendance Report", icon: BarChart2 },
+]
+
+const getYesterday = () => {
+  const d = new Date(); d.setDate(d.getDate() - 1)
+  return d.toISOString().split("T")[0]
+}
+
+const isDateAllowed = (dateStr) => {
   const today = new Date().toISOString().split("T")[0]
+  const yesterday = getYesterday()
+  return dateStr === today || dateStr === yesterday
+}
 
-  // ── Form state ──────────────────────────────────────────────────────────────
+// ── Sub-tab: Bulk Entry (original) ───────────────────────────────────────────
+
+const BulkEntryTab = ({ user, projects }) => {
+  const today = new Date().toISOString().split("T")[0]
   const [form, setForm] = useState({
-    project_id:      "",
-    attendance_date: today,
-    category:        "unskilled",
-    trade:           "",
-    worker_count:    "1",
-    hours_worked:    "8",
-    daily_wage_rate: "380",
-    remarks:         "",
+    project_id: "", attendance_date: today, category: "unskilled",
+    trade: "", worker_count: "1", hours_worked: "8", daily_wage_rate: "380", remarks: "",
   })
-
-  // ── Summary / filter state ──────────────────────────────────────────────────
-  const [records,       setRecords]       = useState([])
-  const [loading,       setLoading]       = useState(false)
-  const [saving,        setSaving]        = useState(false)
-  const [error,         setError]         = useState("")
-  const [dateFilter,    setDateFilter]    = useState(today)
+  const [records, setRecords] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [dateFilter, setDateFilter] = useState(today)
   const [projectFilter, setProjectFilter] = useState("")
 
-  /** Live total mirrors the database GENERATED ALWAYS expression. */
   const liveTotal = (parseInt(form.worker_count) || 0) * (parseFloat(form.daily_wage_rate) || 0)
 
-  /**
-   * Controlled field updater.
-   * When the category changes, the default wage rate and trade are reset
-   * to match the new category — preventing data-entry inconsistencies.
-   */
   const f = (key, val) => setForm(prev => {
     const next = { ...prev, [key]: val }
     if (key === "category") {
       const cat = CATEGORY_OPTIONS.find(c => c.value === val)
       next.daily_wage_rate = String(cat?.defaultWage || "")
-      next.trade           = ""
+      next.trade = ""
     }
     return next
   })
 
-  /** Fetches attendance records for the selected project and date. */
   const loadRecords = async () => {
     if (!projectFilter) { setRecords([]); return }
     setLoading(true)
-    const { data } = await supabase
-      .from("labour_attendance")
-      .select("*, projects(name)")
-      .eq("project_id", projectFilter)
-      .eq("attendance_date", dateFilter)
-      .order("created_at", { ascending: false })
-    setRecords(data || [])
-    setLoading(false)
+    const { data } = await supabase.from("labour_attendance")
+      .select("*, projects(name)").eq("project_id", projectFilter)
+      .eq("attendance_date", dateFilter).order("created_at", { ascending: false })
+    setRecords(data || []); setLoading(false)
   }
 
   useEffect(() => { loadRecords() }, [projectFilter, dateFilter])
 
-  /** Submits an attendance entry to Supabase. total_wage is computed by the DB. */
   const handleSubmit = async () => {
     setError("")
     if (!form.project_id || !form.category || !form.worker_count || !form.daily_wage_rate)
       return setError("Please fill in Project, Category, Worker Count, and Daily Wage Rate.")
     setSaving(true)
     const { error: e } = await supabase.from("labour_attendance").insert({
-      project_id:      form.project_id,
-      user_id:         user.id,
-      attendance_date: form.attendance_date,
-      category:        form.category,
-      trade:           form.trade || null,
-      worker_count:    parseInt(form.worker_count),
-      hours_worked:    parseFloat(form.hours_worked),
-      daily_wage_rate: parseFloat(form.daily_wage_rate),
-      remarks:         form.remarks || null,
-      // total_wage deliberately omitted — GENERATED ALWAYS column
+      project_id: form.project_id, user_id: user.id, attendance_date: form.attendance_date,
+      category: form.category, trade: form.trade || null,
+      worker_count: parseInt(form.worker_count), hours_worked: parseFloat(form.hours_worked),
+      daily_wage_rate: parseFloat(form.daily_wage_rate), remarks: form.remarks || null,
     })
     if (e) { setError(e.message); setSaving(false); return }
     setSaving(false)
-    // Refresh summary if the new record belongs to the active filter
     if (form.project_id === projectFilter && form.attendance_date === dateFilter) loadRecords()
-    // Reset entry-specific fields while keeping project/date selection
     setForm(prev => ({ ...prev, trade: "", worker_count: "1", remarks: "" }))
   }
 
-  /** Aggregated totals for the daily summary KPI row. */
-  const totalDayWage  = records.reduce((s, r) => s + (parseFloat(r.total_wage)   || 0), 0)
-  const totalWorkers  = records.reduce((s, r) => s + (r.worker_count              || 0), 0)
+  const totalDayWage = records.reduce((s, r) => s + (parseFloat(r.total_wage) || 0), 0)
+  const totalWorkers = records.reduce((s, r) => s + (r.worker_count || 0), 0)
   const categoryLabel = val => CATEGORY_OPTIONS.find(c => c.value === val)?.label || val
 
   return (
-    <div style={{ padding: 28 }}>
-      <TopBar
-        title="Labour Register"
-        subtitle="Daily attendance and wage tracking"
-        notifications={notifications}
-        onMarkAllRead={onMarkAllRead}
-      />
-
-      {/* ── Attendance Entry Form ───────────────────────────────────────────── */}
-      <div style={{ background: C.card, borderRadius: 16, padding: 28, marginTop: 24, border: `1px solid ${C.border}` }}>
-        <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 20px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          Log Attendance
-        </h3>
-
+    <>
+      <div style={{ background: C.card, borderRadius: 16, padding: 28, marginTop: 20, border: `1px solid ${C.border}` }}>
+        <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 20px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Log Attendance (Bulk)</h3>
         {error && <p style={{ fontFamily: FONT, fontSize: 13, color: C.danger, background: "#FEE2E2", padding: "10px 14px", borderRadius: 8, marginBottom: 16 }}>{error}</p>}
-
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-          {/* Project and date */}
           <Select label="Project" required value={form.project_id} onChange={e => f("project_id", e.target.value)}
             options={[{ value: "", label: "Select Project" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
-          <Input  label="Date" type="date" required value={form.attendance_date} onChange={e => f("attendance_date", e.target.value)} />
-
-          {/* Category selection auto-populates wage rate */}
+          <Input label="Date" type="date" required value={form.attendance_date} onChange={e => f("attendance_date", e.target.value)} />
           <Select label="Labour Category" required value={form.category} onChange={e => f("category", e.target.value)}
             options={CATEGORY_OPTIONS.map(c => ({ value: c.value, label: c.label }))} />
-          {/* Trade cascades from category */}
           <Select label="Trade / Specialisation" value={form.trade} onChange={e => f("trade", e.target.value)}
             options={[{ value: "", label: "Select Trade" }, ...(TRADE_BY_CATEGORY[form.category] || []).map(t => ({ value: t, label: t }))]} />
-
-          {/* Headcount and hours */}
-          <Input label="Number of Workers" type="number" required value={form.worker_count}    onChange={e => f("worker_count",    e.target.value)} placeholder="0" />
-          <Input label="Hours Worked"      type="number" required value={form.hours_worked}    onChange={e => f("hours_worked",    e.target.value)} placeholder="8" />
-
-          {/* Wage rate pre-filled from category default; editable */}
-          <Input label="Daily Wage Rate (₹)" type="number" required value={form.daily_wage_rate} onChange={e => f("daily_wage_rate", e.target.value)} placeholder="0" />
-          <Input label="Remarks"                           value={form.remarks}          onChange={e => f("remarks",          e.target.value)} placeholder="Optional notes" />
+          <Input label="Number of Workers" type="number" required value={form.worker_count} onChange={e => f("worker_count", e.target.value)} />
+          <Input label="Hours Worked" type="number" required value={form.hours_worked} onChange={e => f("hours_worked", e.target.value)} />
+          <Input label="Daily Wage Rate (₹)" type="number" required value={form.daily_wage_rate} onChange={e => f("daily_wage_rate", e.target.value)} />
+          <Input label="Remarks" value={form.remarks} onChange={e => f("remarks", e.target.value)} placeholder="Optional notes" />
         </div>
-
-        {/* Live wage total */}
-        <div style={{
-          background: "#F8FAFC", borderRadius: 10, padding: "14px 18px",
-          border: `1px solid ${C.border}`,
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          marginBottom: 20
-        }}>
-          <span style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, fontWeight: 600 }}>
-            Total Wage for This Entry
-          </span>
-          <span style={{ fontFamily: FONT_HEADING, fontSize: 26, fontWeight: 800, color: C.accent }}>
-            {fmt(liveTotal)}
-          </span>
+        <div style={{ background: "#F8FAFC", borderRadius: 10, padding: "14px 18px", border: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <span style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, fontWeight: 600 }}>Total Wage for This Entry</span>
+          <span style={{ fontFamily: FONT_HEADING, fontSize: 26, fontWeight: 800, color: C.accent }}>{fmt(liveTotal)}</span>
         </div>
-
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <Btn onClick={handleSubmit} disabled={saving} size="lg" icon={CheckCircle}>
-            {saving ? "Saving..." : "Log Attendance"}
-          </Btn>
+          <Btn onClick={handleSubmit} disabled={saving} size="lg" icon={CheckCircle}>{saving ? "Saving..." : "Log Attendance"}</Btn>
         </div>
       </div>
 
-      {/* ── Daily Summary ───────────────────────────────────────────────────── */}
       <div style={{ background: C.card, borderRadius: 16, padding: 28, marginTop: 20, border: `1px solid ${C.border}` }}>
-        <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          Daily Summary
-        </h3>
-
-        {/* Filter controls */}
+        <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Daily Summary</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
-          <Select
-            value={projectFilter} onChange={e => setProjectFilter(e.target.value)}
-            options={[{ value: "", label: "Select Project to View" }, ...projects.map(p => ({ value: p.id, label: p.name }))]}
-          />
+          <Select value={projectFilter} onChange={e => setProjectFilter(e.target.value)}
+            options={[{ value: "", label: "Select Project to View" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
           <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} />
         </div>
-
-        {!projectFilter ? (
-          <Empty message="Select a project to view attendance" />
-        ) : loading ? <Spinner /> : records.length === 0 ? (
-          <Empty message="No attendance logged for this date" sub="Use the form above to log today's workers" />
-        ) : (
+        {!projectFilter ? <Empty message="Select a project to view attendance" /> : loading ? <Spinner /> : records.length === 0 ? <Empty message="No attendance logged for this date" /> : (
           <>
-            {/* KPI row — answers the key daily question at a glance */}
             <div style={{ display: "flex", gap: 14, marginBottom: 20 }}>
-              <KPICard label="Total Workers"  value={totalWorkers}     sub="on site today"     icon={Users}     accent={C.info}    />
-              <KPICard label="Total Wage Bill" value={fmt(totalDayWage)} sub="for selected date" icon={DollarSign} accent={C.success} />
-              <KPICard label="Entries Logged" value={records.length}   sub="categories"        icon={FileText}  accent={C.accent}  />
+              <KPICard label="Total Workers" value={totalWorkers} icon={Users} accent={C.info} />
+              <KPICard label="Total Wage Bill" value={fmt(totalDayWage)} icon={DollarSign} accent={C.success} />
+              <KPICard label="Entries Logged" value={records.length} icon={FileText} accent={C.accent} />
             </div>
-
-            {/* Attendance register table */}
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: "#F8FAFC" }}>
-                    {["Category","Trade","Workers","Hours","Rate / Day","Total Wage","Remarks"].map(h => (
-                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map(r => (
-                    <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                      <td style={{ padding: "10px 14px" }}><StatusBadge status={categoryLabel(r.category)} /></td>
-                      <td style={{ padding: "10px 14px", color: C.text, fontWeight: 600 }}>{r.trade || "—"}</td>
-                      <td style={{ padding: "10px 14px", color: C.text, textAlign: "center" }}>{r.worker_count}</td>
-                      <td style={{ padding: "10px 14px", color: C.text, textAlign: "center" }}>{r.hours_worked}h</td>
-                      <td style={{ padding: "10px 14px", color: C.text }}>₹{parseFloat(r.daily_wage_rate).toLocaleString("en-IN")}</td>
-                      <td style={{ padding: "10px 14px", fontWeight: 700, color: C.accent }}>{fmt(parseFloat(r.total_wage))}</td>
-                      <td style={{ padding: "10px 14px", color: C.textMuted }}>{r.remarks || "—"}</td>
-                    </tr>
+                <thead><tr style={{ background: "#F8FAFC" }}>
+                  {["Category","Trade","Workers","Hours","Rate / Day","Total Wage","Remarks"].map(h => (
+                    <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>
                   ))}
-                </tbody>
-                {/* Summary footer row */}
-                <tfoot>
-                  <tr style={{ background: "#F8FAFC", borderTop: `2px solid ${C.border}` }}>
-                    <td colSpan={2} style={{ padding: "12px 14px", fontFamily: FONT_HEADING, fontWeight: 700, color: C.charcoal }}>TOTAL</td>
-                    <td style={{ padding: "12px 14px", fontWeight: 700, textAlign: "center", color: C.text }}>{totalWorkers}</td>
-                    <td colSpan={2} style={{ padding: "12px 14px" }} />
-                    <td style={{ padding: "12px 14px", fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 800, color: C.accent }}>{fmt(totalDayWage)}</td>
-                    <td />
+                </tr></thead>
+                <tbody>{records.map(r => (
+                  <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "10px 14px" }}><StatusBadge status={categoryLabel(r.category)} /></td>
+                    <td style={{ padding: "10px 14px", color: C.text, fontWeight: 600 }}>{r.trade || "—"}</td>
+                    <td style={{ padding: "10px 14px", color: C.text, textAlign: "center" }}>{r.worker_count}</td>
+                    <td style={{ padding: "10px 14px", color: C.text, textAlign: "center" }}>{r.hours_worked}h</td>
+                    <td style={{ padding: "10px 14px", color: C.text }}>₹{parseFloat(r.daily_wage_rate).toLocaleString("en-IN")}</td>
+                    <td style={{ padding: "10px 14px", fontWeight: 700, color: C.accent }}>{fmt(parseFloat(r.total_wage))}</td>
+                    <td style={{ padding: "10px 14px", color: C.textMuted }}>{r.remarks || "—"}</td>
                   </tr>
-                </tfoot>
+                ))}</tbody>
+                <tfoot><tr style={{ background: "#F8FAFC", borderTop: `2px solid ${C.border}` }}>
+                  <td colSpan={2} style={{ padding: "12px 14px", fontFamily: FONT_HEADING, fontWeight: 700, color: C.charcoal }}>TOTAL</td>
+                  <td style={{ padding: "12px 14px", fontWeight: 700, textAlign: "center", color: C.text }}>{totalWorkers}</td>
+                  <td colSpan={2} />
+                  <td style={{ padding: "12px 14px", fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 800, color: C.accent }}>{fmt(totalDayWage)}</td>
+                  <td />
+                </tr></tfoot>
               </table>
             </div>
           </>
         )}
       </div>
+    </>
+  )
+}
+
+// ── Sub-tab: Manage Workers ──────────────────────────────────────────────────
+
+const ManageWorkersTab = ({ user, projects }) => {
+  const [workers, setWorkers] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [projectFilter, setProjectFilter] = useState("")
+  const [showForm, setShowForm] = useState(false)
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(null)
+  const [form, setForm] = useState({
+    name: "", phone: "", category: "unskilled", trade: "",
+    daily_wage_rate: "380", aadhaar_last4: "", joined_date: new Date().toISOString().split("T")[0],
+  })
+
+  // Edit state
+  const [editWorker, setEditWorker] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [editPhotoFile, setEditPhotoFile] = useState(null)
+  const [editPhotoPreview, setEditPhotoPreview] = useState(null)
+  const [editSaving, setEditSaving] = useState(false)
+
+  // Delete state
+  const [deleteWorker, setDeleteWorker] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const f = (key, val) => setForm(prev => {
+    const next = { ...prev, [key]: val }
+    if (key === "category") {
+      const cat = CATEGORY_OPTIONS.find(c => c.value === val)
+      next.daily_wage_rate = String(cat?.defaultWage || "")
+      next.trade = ""
+    }
+    return next
+  })
+
+  const loadWorkers = async () => {
+    if (!projectFilter) { setWorkers([]); return }
+    setLoading(true)
+    const { data } = await supabase.from("labourers")
+      .select("*").eq("project_id", projectFilter).order("name")
+    setWorkers(data || []); setLoading(false)
+  }
+
+  useEffect(() => { loadWorkers() }, [projectFilter])
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  const handleAdd = async () => {
+    setError("")
+    if (!projectFilter || !form.name.trim()) return setError("Select a project and enter worker name.")
+    if (form.aadhaar_last4 && form.aadhaar_last4.length !== 4) return setError("Aadhaar must be exactly 4 digits.")
+    setSaving(true)
+
+    let photo_url = null
+    if (photoFile) {
+      const ext = photoFile.name.split(".").pop()
+      const path = `${projectFilter}/${Date.now()}_${form.name.replace(/\s+/g, "_")}.${ext}`
+      const { error: upErr } = await supabase.storage.from("labourer-photos").upload(path, photoFile)
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from("labourer-photos").getPublicUrl(path)
+        photo_url = urlData?.publicUrl
+      }
+    }
+
+    const { error: e } = await supabase.from("labourers").insert({
+      project_id: projectFilter, name: form.name.trim(), phone: form.phone || null,
+      category: form.category, trade: form.trade || null,
+      daily_wage_rate: parseFloat(form.daily_wage_rate),
+      aadhaar_last4: form.aadhaar_last4 || null, photo_url,
+      joined_date: form.joined_date,
+    })
+    if (e) { setError(e.message); setSaving(false); return }
+    setSaving(false); setShowForm(false); setPhotoFile(null); setPhotoPreview(null)
+    setForm({ name: "", phone: "", category: "unskilled", trade: "", daily_wage_rate: "380", aadhaar_last4: "", joined_date: new Date().toISOString().split("T")[0] })
+    loadWorkers()
+  }
+
+  const toggleActive = async (w) => {
+    await supabase.from("labourers").update({ is_active: !w.is_active }).eq("id", w.id)
+    loadWorkers()
+  }
+
+  const openEdit = (w) => {
+    setEditWorker(w)
+    setEditForm({
+      name: w.name, phone: w.phone || "", category: w.category,
+      trade: w.trade || "", daily_wage_rate: String(w.daily_wage_rate),
+      aadhaar_last4: w.aadhaar_last4 || "", joined_date: w.joined_date || "",
+    })
+    setEditPhotoPreview(w.photo_url || null)
+    setEditPhotoFile(null)
+  }
+
+  const ef = (key, val) => setEditForm(prev => {
+    const next = { ...prev, [key]: val }
+    if (key === "category") {
+      const cat = CATEGORY_OPTIONS.find(c => c.value === val)
+      next.daily_wage_rate = String(cat?.defaultWage || "")
+      next.trade = ""
+    }
+    return next
+  })
+
+  const handleEditSave = async () => {
+    setError("")
+    if (!editForm.name.trim()) return setError("Worker name is required.")
+    if (editForm.aadhaar_last4 && editForm.aadhaar_last4.length !== 4) return setError("Aadhaar must be exactly 4 digits.")
+    setEditSaving(true)
+
+    let photo_url = editWorker.photo_url
+    if (editPhotoFile) {
+      const ext = editPhotoFile.name.split(".").pop()
+      const path = `${projectFilter}/${Date.now()}_${editForm.name.replace(/\s+/g, "_")}.${ext}`
+      const { error: upErr } = await supabase.storage.from("labourer-photos").upload(path, editPhotoFile)
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from("labourer-photos").getPublicUrl(path)
+        photo_url = urlData?.publicUrl
+      }
+    }
+
+    const { error: e } = await supabase.from("labourers").update({
+      name: editForm.name.trim(), phone: editForm.phone || null,
+      category: editForm.category, trade: editForm.trade || null,
+      daily_wage_rate: parseFloat(editForm.daily_wage_rate),
+      aadhaar_last4: editForm.aadhaar_last4 || null, photo_url,
+      joined_date: editForm.joined_date, updated_at: new Date().toISOString(),
+    }).eq("id", editWorker.id)
+
+    if (e) { setError(e.message); setEditSaving(false); return }
+    setEditSaving(false); setEditWorker(null); setEditPhotoFile(null); setEditPhotoPreview(null)
+    loadWorkers()
+  }
+
+  const handleDelete = async () => {
+    if (!deleteWorker) return
+    setDeleting(true)
+    await supabase.from("labourers").delete().eq("id", deleteWorker.id)
+    setDeleting(false); setDeleteWorker(null)
+    loadWorkers()
+  }
+
+  const activeCount = workers.filter(w => w.is_active).length
+  const catLabel = val => CATEGORY_OPTIONS.find(c => c.value === val)?.label || val
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 14, marginTop: 20, alignItems: "flex-end" }}>
+        <div style={{ flex: 1 }}>
+          <Select label="Project" value={projectFilter} onChange={e => setProjectFilter(e.target.value)}
+            options={[{ value: "", label: "Select Project" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
+        </div>
+        {projectFilter && <Btn onClick={() => setShowForm(!showForm)} icon={UserPlus} size="lg">{showForm ? "Cancel" : "Add Worker"}</Btn>}
+      </div>
+
+      {showForm && projectFilter && (
+        <div style={{ background: C.card, borderRadius: 16, padding: 28, marginTop: 16, border: `1px solid ${C.border}` }}>
+          <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 16px" }}>Register New Worker</h3>
+          {error && <p style={{ fontFamily: FONT, fontSize: 13, color: C.danger, background: "#FEE2E2", padding: "10px 14px", borderRadius: 8, marginBottom: 16 }}>{error}</p>}
+
+          <div style={{ display: "flex", gap: 24, marginBottom: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 100, height: 100, borderRadius: 12, background: "#F1F5F9", border: `2px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: "pointer", position: "relative" }}
+                onClick={() => document.getElementById("photo-input").click()}>
+                {photoPreview ? <img src={photoPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <Camera size={28} color={C.textMuted} />}
+              </div>
+              <input id="photo-input" type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
+              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT }}>Upload Photo</span>
+            </div>
+
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Input label="Full Name" required value={form.name} onChange={e => f("name", e.target.value)} placeholder="e.g. Ramesh Kumar" />
+              <Input label="Phone" value={form.phone} onChange={e => f("phone", e.target.value)} placeholder="Optional" />
+              <Select label="Category" required value={form.category} onChange={e => f("category", e.target.value)}
+                options={CATEGORY_OPTIONS.map(c => ({ value: c.value, label: c.label }))} />
+              <Select label="Trade" value={form.trade} onChange={e => f("trade", e.target.value)}
+                options={[{ value: "", label: "Select Trade" }, ...(TRADE_BY_CATEGORY[form.category] || []).map(t => ({ value: t, label: t }))]} />
+              <Input label="Daily Wage (₹)" type="number" required value={form.daily_wage_rate} onChange={e => f("daily_wage_rate", e.target.value)} />
+              <Input label="Aadhaar Last 4" value={form.aadhaar_last4} onChange={e => f("aadhaar_last4", e.target.value)} placeholder="e.g. 1234" />
+              <Input label="Joined Date" type="date" value={form.joined_date} onChange={e => f("joined_date", e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Btn onClick={handleAdd} disabled={saving} icon={UserPlus}>{saving ? "Saving..." : "Register Worker"}</Btn>
+          </div>
+        </div>
+      )}
+
+      {projectFilter && (
+        <div style={{ display: "flex", gap: 14, marginTop: 16 }}>
+          <KPICard label="Active Workers" value={activeCount} icon={UserCheck} accent={C.success} />
+          <KPICard label="Inactive" value={workers.length - activeCount} icon={UserX} accent={C.textMuted} />
+          <KPICard label="Total Registered" value={workers.length} icon={Users} accent={C.info} />
+        </div>
+      )}
+
+      <div style={{ background: C.card, borderRadius: 16, marginTop: 16, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        {!projectFilter ? <div style={{ padding: 28 }}><Empty message="Select a project to view workers" /></div> : loading ? <Spinner /> : workers.length === 0 ? <div style={{ padding: 28 }}><Empty message="No workers registered yet" /></div> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
+              <thead><tr style={{ background: "#F8FAFC" }}>
+                {["","Name","Category","Trade","Wage/Day","Aadhaar","Joined","Status","Actions"].map(h => (
+                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>{workers.map(w => (
+                <tr key={w.id} style={{ borderBottom: `1px solid ${C.border}`, opacity: w.is_active ? 1 : 0.5 }}>
+                  <td style={{ padding: "8px 14px" }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: "#F1F5F9", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {w.photo_url ? <img src={w.photo_url} alt={w.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={16} color={C.textMuted} />}
+                    </div>
+                  </td>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.text }}>{w.name}{w.phone && <div style={{ fontSize: 11, color: C.textMuted }}>{w.phone}</div>}</td>
+                  <td style={{ padding: "10px 14px" }}><StatusBadge status={catLabel(w.category)} /></td>
+                  <td style={{ padding: "10px 14px", color: C.text }}>{w.trade || "—"}</td>
+                  <td style={{ padding: "10px 14px", color: C.accent, fontWeight: 700 }}>₹{parseFloat(w.daily_wage_rate).toLocaleString("en-IN")}</td>
+                  <td style={{ padding: "10px 14px", color: C.textMuted }}>{w.aadhaar_last4 ? `••••${w.aadhaar_last4}` : "—"}</td>
+                  <td style={{ padding: "10px 14px", color: C.text }}>{w.joined_date}</td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <Badge label={w.is_active ? "Active" : "Inactive"} bg={w.is_active ? "#D1FAE5" : "#F1F5F9"} color={w.is_active ? C.success : C.textMuted} />
+                  </td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button onClick={() => openEdit(w)} style={{ background: "none", border: "none", color: C.info, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>Edit</button>
+                      <button onClick={() => toggleActive(w)} style={{ background: "none", border: "none", color: C.warning, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
+                        {w.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                      <button onClick={() => setDeleteWorker(w)} style={{ background: "none", border: "none", color: C.danger, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Edit Worker Modal */}
+      {editWorker && (
+        <Modal title="Edit Worker" onClose={() => setEditWorker(null)} width={620}>
+          {error && <p style={{ fontFamily: FONT, fontSize: 13, color: C.danger, background: "#FEE2E2", padding: "10px 14px", borderRadius: 8, marginBottom: 16 }}>{error}</p>}
+          <div style={{ display: "flex", gap: 24, marginBottom: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 100, height: 100, borderRadius: 12, background: "#F1F5F9", border: `2px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: "pointer" }}
+                onClick={() => document.getElementById("edit-photo-input").click()}>
+                {editPhotoPreview ? <img src={editPhotoPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <Camera size={28} color={C.textMuted} />}
+              </div>
+              <input id="edit-photo-input" type="file" accept="image/*" onChange={e => { const file = e.target.files?.[0]; if (file) { setEditPhotoFile(file); setEditPhotoPreview(URL.createObjectURL(file)) } }} style={{ display: "none" }} />
+              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT }}>Change Photo</span>
+            </div>
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Input label="Full Name" required value={editForm.name} onChange={e => ef("name", e.target.value)} />
+              <Input label="Phone" value={editForm.phone} onChange={e => ef("phone", e.target.value)} />
+              <Select label="Category" required value={editForm.category} onChange={e => ef("category", e.target.value)}
+                options={CATEGORY_OPTIONS.map(c => ({ value: c.value, label: c.label }))} />
+              <Select label="Trade" value={editForm.trade} onChange={e => ef("trade", e.target.value)}
+                options={[{ value: "", label: "Select Trade" }, ...(TRADE_BY_CATEGORY[editForm.category] || []).map(t => ({ value: t, label: t }))]} />
+              <Input label="Daily Wage (₹)" type="number" required value={editForm.daily_wage_rate} onChange={e => ef("daily_wage_rate", e.target.value)} />
+              <Input label="Aadhaar Last 4" value={editForm.aadhaar_last4} onChange={e => ef("aadhaar_last4", e.target.value)} />
+              <Input label="Joined Date" type="date" value={editForm.joined_date} onChange={e => ef("joined_date", e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <Btn variant="secondary" onClick={() => setEditWorker(null)}>Cancel</Btn>
+            <Btn onClick={handleEditSave} disabled={editSaving} icon={CheckCircle}>{editSaving ? "Saving..." : "Save Changes"}</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteWorker && (
+        <Modal title="Delete Worker" onClose={() => setDeleteWorker(null)} width={440}>
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontFamily: FONT, fontSize: 14, color: C.text, margin: "0 0 12px" }}>
+              Are you sure you want to permanently delete <strong>{deleteWorker.name}</strong>?
+            </p>
+            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: 12, fontSize: 13, fontFamily: FONT, color: C.danger }}>
+              ⚠ This will also remove all attendance records for this worker. This action cannot be undone.
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <Btn variant="secondary" onClick={() => setDeleteWorker(null)}>Cancel</Btn>
+            <Btn variant="danger" onClick={handleDelete} disabled={deleting} icon={Trash2}>{deleting ? "Deleting..." : "Delete Permanently"}</Btn>
+          </div>
+        </Modal>
+      )}
+    </>
+  )
+}
+
+// ── Sub-tab: Mark Attendance ─────────────────────────────────────────────────
+
+const MarkAttendanceTab = ({ user, projects }) => {
+  const today = new Date().toISOString().split("T")[0]
+  const [projectId, setProjectId] = useState("")
+  const [attDate, setAttDate] = useState(today)
+  const [workers, setWorkers] = useState([])
+  const [attMap, setAttMap] = useState({})
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+  const [existing, setExisting] = useState({})
+
+  const dateAllowed = isDateAllowed(attDate)
+
+  const loadWorkers = async () => {
+    if (!projectId) { setWorkers([]); return }
+    setLoading(true)
+    const { data: w } = await supabase.from("labourers")
+      .select("*").eq("project_id", projectId).eq("is_active", true).order("name")
+
+    const { data: att } = await supabase.from("labourer_attendance")
+      .select("*").eq("project_id", projectId).eq("attendance_date", attDate)
+
+    const existingMap = {}
+    const map = {};
+    (w || []).forEach(worker => {
+      const found = (att || []).find(a => a.labourer_id === worker.id)
+      if (found) {
+        existingMap[worker.id] = found.id
+        map[worker.id] = { status: found.status, hours: found.hours_worked, remarks: found.remarks || "" }
+      } else {
+        map[worker.id] = { status: "present", hours: 8, remarks: "" }
+      }
+    })
+    setWorkers(w || []); setAttMap(map); setExisting(existingMap); setLoading(false)
+  }
+
+  useEffect(() => { loadWorkers() }, [projectId, attDate])
+
+  const updateAtt = (wId, key, val) => setAttMap(prev => ({ ...prev, [wId]: { ...prev[wId], [key]: val } }))
+
+  const markAllPresent = () => {
+    const map = {}
+    workers.forEach(w => { map[w.id] = { status: "present", hours: 8, remarks: attMap[w.id]?.remarks || "" } })
+    setAttMap(map)
+  }
+
+  const handleSave = async () => {
+    setError(""); setSuccess(""); setSaving(true)
+    if (!dateAllowed) { setError("Attendance can only be marked for today or yesterday."); setSaving(false); return }
+
+    const upserts = workers.map(w => {
+      const a = attMap[w.id] || { status: "present", hours: 8, remarks: "" }
+      const wage = a.status === "present" ? w.daily_wage_rate : a.status === "half_day" ? w.daily_wage_rate / 2 : 0
+      return {
+        ...(existing[w.id] ? { id: existing[w.id] } : {}),
+        labourer_id: w.id, project_id: projectId, attendance_date: attDate,
+        status: a.status, hours_worked: a.status === "absent" ? 0 : a.status === "half_day" ? 4 : parseFloat(a.hours) || 8,
+        wage_earned: wage, marked_by: user.id, remarks: a.remarks || null,
+      }
+    })
+
+    const { error: e } = await supabase.from("labourer_attendance").upsert(upserts, { onConflict: "labourer_id,attendance_date" })
+    if (e) { setError(e.message); setSaving(false); return }
+    setSuccess(`Attendance saved for ${workers.length} workers!`); setSaving(false)
+    loadWorkers()
+  }
+
+  const presentCount = workers.filter(w => attMap[w.id]?.status === "present").length
+  const absentCount = workers.filter(w => attMap[w.id]?.status === "absent").length
+  const halfDayCount = workers.filter(w => attMap[w.id]?.status === "half_day").length
+  const totalWage = workers.reduce((s, w) => {
+    const a = attMap[w.id]
+    if (!a) return s
+    return s + (a.status === "present" ? w.daily_wage_rate : a.status === "half_day" ? w.daily_wage_rate / 2 : 0)
+  }, 0)
+
+  const catLabel = val => CATEGORY_OPTIONS.find(c => c.value === val)?.label || val
+  const statusColors = { present: { bg: "#D1FAE5", color: C.success }, absent: { bg: "#FEE2E2", color: C.danger }, half_day: { bg: "#FEF3C7", color: C.warning } }
+
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 20 }}>
+        <Select label="Project" value={projectId} onChange={e => setProjectId(e.target.value)}
+          options={[{ value: "", label: "Select Project" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
+        <div>
+          <Input label="Attendance Date" type="date" value={attDate} onChange={e => setAttDate(e.target.value)} />
+          {!dateAllowed && <p style={{ fontSize: 11, color: C.danger, margin: "4px 0 0", fontFamily: FONT }}>⚠ Only today or yesterday allowed</p>}
+        </div>
+      </div>
+
+      {error && <p style={{ fontFamily: FONT, fontSize: 13, color: C.danger, background: "#FEE2E2", padding: "10px 14px", borderRadius: 8, marginTop: 12 }}>{error}</p>}
+      {success && <p style={{ fontFamily: FONT, fontSize: 13, color: C.success, background: "#D1FAE5", padding: "10px 14px", borderRadius: 8, marginTop: 12 }}>{success}</p>}
+
+      {projectId && workers.length > 0 && (
+        <>
+          <div style={{ display: "flex", gap: 14, marginTop: 16 }}>
+            <KPICard label="Present" value={presentCount} icon={UserCheck} accent={C.success} />
+            <KPICard label="Absent" value={absentCount} icon={UserX} accent={C.danger} />
+            <KPICard label="Half Day" value={halfDayCount} icon={Clock} accent={C.warning} />
+            <KPICard label="Wage Bill" value={fmt(totalWage)} icon={DollarSign} accent={C.accent} />
+          </div>
+
+          <div style={{ background: C.card, borderRadius: 16, marginTop: 16, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+            <div style={{ padding: "14px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: 0 }}>Mark Individual Attendance</h3>
+              <div style={{ display: "flex", gap: 10 }}>
+                <Btn variant="outline" size="sm" onClick={markAllPresent} icon={CheckCircle}>Mark All Present</Btn>
+                <Btn size="sm" onClick={handleSave} disabled={saving || !dateAllowed} icon={CheckCircle}>{saving ? "Saving..." : "Save Attendance"}</Btn>
+              </div>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
+                <thead><tr style={{ background: "#F8FAFC" }}>
+                  {["","Name","Trade","Wage/Day","Status","Hours","Remarks"].map(h => (
+                    <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>{workers.map(w => {
+                  const a = attMap[w.id] || { status: "present", hours: 8, remarks: "" }
+                  const sc = statusColors[a.status] || statusColors.present
+                  return (
+                    <tr key={w.id} style={{ borderBottom: `1px solid ${C.border}`, background: a.status === "absent" ? "#FEF2F2" : "transparent" }}>
+                      <td style={{ padding: "8px 14px" }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F1F5F9", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {w.photo_url ? <img src={w.photo_url} alt={w.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={14} color={C.textMuted} />}
+                        </div>
+                      </td>
+                      <td style={{ padding: "10px 14px", fontWeight: 600, color: C.text }}>{w.name}</td>
+                      <td style={{ padding: "10px 14px", color: C.textMuted }}>{w.trade || catLabel(w.category)}</td>
+                      <td style={{ padding: "10px 14px", color: C.accent, fontWeight: 600 }}>₹{parseFloat(w.daily_wage_rate).toLocaleString("en-IN")}</td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <select value={a.status} onChange={e => updateAtt(w.id, "status", e.target.value)}
+                          style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, fontFamily: FONT, fontWeight: 600, background: sc.bg, color: sc.color }}>
+                          <option value="present">Present</option>
+                          <option value="absent">Absent</option>
+                          <option value="half_day">Half Day</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <input type="number" value={a.hours} onChange={e => updateAtt(w.id, "hours", e.target.value)}
+                          style={{ width: 50, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 12, fontFamily: FONT, textAlign: "center" }}
+                          disabled={a.status === "absent"} />
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <input value={a.remarks} onChange={e => updateAtt(w.id, "remarks", e.target.value)} placeholder="—"
+                          style={{ width: 120, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.border}`, fontSize: 12, fontFamily: FONT }} />
+                      </td>
+                    </tr>
+                  )
+                })}</tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+      {projectId && !loading && workers.length === 0 && <div style={{ marginTop: 20 }}><Empty message="No active workers found" sub="Register workers in the 'Manage Workers' tab first" /></div>}
+      {!projectId && <div style={{ marginTop: 20 }}><Empty message="Select a project to mark attendance" /></div>}
+    </>
+  )
+}
+
+// ── Sub-tab: Attendance Report ───────────────────────────────────────────────
+
+const AttendanceReportTab = ({ projects }) => {
+  const today = new Date().toISOString().split("T")[0]
+  const weekAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split("T")[0] })()
+  const [projectId, setProjectId] = useState("")
+  const [startDate, setStartDate] = useState(weekAgo)
+  const [endDate, setEndDate] = useState(today)
+  const [workers, setWorkers] = useState([])
+  const [attData, setAttData] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  const loadReport = async () => {
+    if (!projectId) return
+    setLoading(true)
+    const { data: w } = await supabase.from("labourers")
+      .select("*").eq("project_id", projectId).order("name")
+    const { data: att } = await supabase.from("labourer_attendance")
+      .select("*").eq("project_id", projectId)
+      .gte("attendance_date", startDate).lte("attendance_date", endDate)
+    setWorkers(w || []); setAttData(att || []); setLoading(false)
+  }
+
+  useEffect(() => { loadReport() }, [projectId, startDate, endDate])
+
+  const dates = []
+  if (startDate && endDate) {
+    const d = new Date(startDate)
+    const end = new Date(endDate)
+    while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setDate(d.getDate() + 1) }
+  }
+
+  const getStatus = (wId, date) => {
+    const found = attData.find(a => a.labourer_id === wId && a.attendance_date === date)
+    return found?.status || null
+  }
+
+  const statusIcon = (s) => {
+    if (s === "present") return <span style={{ color: C.success, fontWeight: 700 }}>✓</span>
+    if (s === "absent") return <span style={{ color: C.danger, fontWeight: 700 }}>✗</span>
+    if (s === "half_day") return <span style={{ color: C.warning, fontWeight: 700 }}>½</span>
+    return <span style={{ color: "#CBD5E1" }}>—</span>
+  }
+
+  const getWorkerStats = (wId) => {
+    const recs = attData.filter(a => a.labourer_id === wId)
+    const present = recs.filter(a => a.status === "present").length
+    const halfDay = recs.filter(a => a.status === "half_day").length
+    const totalDays = dates.length
+    const attendPct = totalDays > 0 ? Math.round(((present + halfDay * 0.5) / totalDays) * 100) : 0
+    const totalWage = recs.reduce((s, a) => s + (parseFloat(a.wage_earned) || 0), 0)
+    return { present, halfDay, attendPct, totalWage }
+  }
+
+  const formatDateShort = (d) => {
+    const dt = new Date(d)
+    return `${dt.getDate()}/${dt.getMonth() + 1}`
+  }
+
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 20 }}>
+        <Select label="Project" value={projectId} onChange={e => setProjectId(e.target.value)}
+          options={[{ value: "", label: "Select Project" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
+        <Input label="From" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+        <Input label="To" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+      </div>
+
+      {!projectId ? <div style={{ marginTop: 20 }}><Empty message="Select a project to view report" /></div> : loading ? <Spinner /> : workers.length === 0 ? <div style={{ marginTop: 20 }}><Empty message="No workers registered for this project" /></div> : (
+        <div style={{ background: C.card, borderRadius: 16, marginTop: 16, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "14px 24px", borderBottom: `1px solid ${C.border}` }}>
+            <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: 0 }}>
+              Attendance Matrix — {dates.length} days
+            </h3>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 12 }}>
+              <thead><tr style={{ background: "#F8FAFC" }}>
+                <th style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}`, position: "sticky", left: 0, background: "#F8FAFC", zIndex: 1, minWidth: 140 }}>Worker</th>
+                {dates.map(d => (
+                  <th key={d} style={{ padding: "8px 6px", textAlign: "center", fontWeight: 600, color: C.textMuted, borderBottom: `2px solid ${C.border}`, minWidth: 40 }}>{formatDateShort(d)}</th>
+                ))}
+                <th style={{ padding: "10px 14px", textAlign: "center", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}`, minWidth: 50 }}>%</th>
+                <th style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}`, minWidth: 80 }}>Total ₹</th>
+              </tr></thead>
+              <tbody>{workers.map(w => {
+                const stats = getWorkerStats(w.id)
+                const pctColor = stats.attendPct >= 80 ? C.success : stats.attendPct >= 50 ? C.warning : C.danger
+                return (
+                  <tr key={w.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "8px 14px", fontWeight: 600, color: C.text, position: "sticky", left: 0, background: C.card, zIndex: 1, whiteSpace: "nowrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 24, height: 24, borderRadius: 6, background: "#F1F5F9", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {w.photo_url ? <img src={w.photo_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <User size={12} color={C.textMuted} />}
+                        </div>
+                        {w.name}
+                      </div>
+                    </td>
+                    {dates.map(d => (
+                      <td key={d} style={{ padding: "8px 6px", textAlign: "center" }}>{statusIcon(getStatus(w.id, d))}</td>
+                    ))}
+                    <td style={{ padding: "8px 14px", textAlign: "center", fontWeight: 700, color: pctColor }}>{stats.attendPct}%</td>
+                    <td style={{ padding: "8px 14px", textAlign: "right", fontWeight: 700, color: C.accent }}>{fmt(stats.totalWage)}</td>
+                  </tr>
+                )
+              })}</tbody>
+            </table>
+          </div>
+          <div style={{ padding: "12px 24px", borderTop: `1px solid ${C.border}`, display: "flex", gap: 20, fontSize: 12, fontFamily: FONT, color: C.textMuted }}>
+            <span><span style={{ color: C.success, fontWeight: 700 }}>✓</span> Present</span>
+            <span><span style={{ color: C.danger, fontWeight: 700 }}>✗</span> Absent</span>
+            <span><span style={{ color: C.warning, fontWeight: 700 }}>½</span> Half Day</span>
+            <span><span style={{ color: "#CBD5E1" }}>—</span> No Record</span>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Main LabourRegister with Tabs ────────────────────────────────────────────
+
+const LabourRegister = ({ user, projects, notifications, onMarkAllRead }) => {
+  const [activeTab, setActiveTab] = useState("bulk")
+
+  const hasProjects = (projects || []).length > 0
+
+  return (
+    <div style={{ padding: 28 }}>
+      <TopBar title="Labour Register" subtitle="Attendance, worker management & wage tracking" notifications={notifications} onMarkAllRead={onMarkAllRead} />
+
+      {!hasProjects ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+            <Users size={32} color={C.textMuted} />
+          </div>
+          <p style={{ fontFamily: FONT_HEADING, fontSize: 20, fontWeight: 700, color: C.text, margin: "0 0 8px" }}>No Projects Found</p>
+          <p style={{ fontFamily: FONT, fontSize: 14, color: C.textMuted, margin: "0 0 24px", maxWidth: 380, lineHeight: 1.6 }}>
+            Labour attendance and wage tracking is organised by project. Create your first project to start managing your workforce.
+          </p>
+          <div style={{ background: "#F8FAFC", border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px 24px", display: "flex", alignItems: "center", gap: 12 }}>
+            <AlertTriangle size={18} color={C.warning} />
+            <p style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, margin: 0 }}>Go to <strong>Projects</strong> and create a project first.</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Tab Navigation */}
+          <div style={{ display: "flex", gap: 4, marginTop: 24, background: "#F1F5F9", borderRadius: 12, padding: 4 }}>
+            {ATTENDANCE_TABS.map(t => {
+              const active = activeTab === t.key
+              const Icon = t.icon
+              return (
+                <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+                  flex: 1, padding: "12px 16px", borderRadius: 10, border: "none", cursor: "pointer",
+                  background: active ? C.card : "transparent", color: active ? C.accent : C.textMuted,
+                  fontFamily: FONT, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center",
+                  justifyContent: "center", gap: 8, transition: "all 0.2s ease",
+                  boxShadow: active ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
+                }}>
+                  <Icon size={16} /> {t.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === "bulk"   && <BulkEntryTab user={user} projects={projects} />}
+          {activeTab === "manage" && <ManageWorkersTab user={user} projects={projects} />}
+          {activeTab === "mark"   && <MarkAttendanceTab user={user} projects={projects} />}
+          {activeTab === "report" && <AttendanceReportTab projects={projects} />}
+        </>
+      )}
     </div>
   )
 }
+
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI ASSISTANT — Context Assembler
@@ -3490,7 +4305,344 @@ const LabourRegister = ({ user, projects, notifications, onMarkAllRead }) => {
 // accurate, up-to-date data rather than relying on its training weights.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const buildAgentContext = (projects, reports, materials = []) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGE — Site Issues (AI Delay Logger)
+//
+// Tracks site delays and issues with AI-powered NLP classification.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ISSUE_CATEGORIES = {
+  material_delay:     { label: "Material Delay",      color: C.warning, bg: "#FEF3C7", icon: Truck },
+  labour_shortage:    { label: "Labour Shortage",     color: C.info,    bg: "#DBEAFE", icon: Users },
+  equipment_failure:  { label: "Equipment Failure",   color: C.danger,  bg: "#FEE2E2", icon: Wrench },
+  approval_pending:   { label: "Approval Pending",    color: "#6B21A8", bg: "#F3E8FF", icon: Clock },
+  weather_disruption: { label: "Weather Disruption",  color: "#0369A1", bg: "#E0F2FE", icon: CloudRain },
+  safety_incident:    { label: "Safety Incident",     color: C.danger,  bg: "#FEE2E2", icon: AlertTriangle },
+  quality_issue:      { label: "Quality Issue",       color: "#B45309", bg: "#FEF3C7", icon: AlertCircle },
+  other:              { label: "Other",               color: C.textMuted, bg: "#F1F5F9", icon: MoreVertical },
+  uncategorized:      { label: "Uncategorized",       color: C.textMuted, bg: "#F1F5F9", icon: MoreVertical },
+}
+
+const ISSUE_PRIORITIES = {
+  critical: { label: "Critical", color: C.danger,  bg: "#FEE2E2" },
+  high:     { label: "High",     color: C.warning, bg: "#FEF3C7" },
+  medium:   { label: "Medium",   color: C.info,    bg: "#DBEAFE" },
+  low:      { label: "Low",      color: C.textMuted, bg: "#F1F5F9" },
+}
+
+const ISSUE_STATUSES = {
+  open:         { label: "Open",        color: C.danger,  bg: "#FEE2E2" },
+  in_progress:  { label: "In Progress", color: C.info,    bg: "#DBEAFE" },
+  resolved:     { label: "Resolved",    color: C.success, bg: "#D1FAE5" },
+  closed:       { label: "Closed",      color: C.textMuted, bg: "#F1F5F9" },
+}
+
+const SiteIssues = ({ user, projects, notifications, onMarkAllRead }) => {
+  const [issues, setIssues] = useState([])
+  const [loading, setLoading] = useState(true)
+  
+  // Form State
+  const [projectId, setProjectId] = useState("")
+  const [reportedDate, setReportedDate] = useState(new Date().toISOString().split("T")[0])
+  const [description, setDescription] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState("")
+  
+  // UI State
+  const [filterStatus, setFilterStatus] = useState("open") // open, all, resolved
+  const [activeIssue, setActiveIssue] = useState(null)
+  const [updStatus, setUpdStatus] = useState("")
+  const [updNotes, setUpdNotes] = useState("")
+  const [updating, setUpdating] = useState(false)
+
+  const loadIssues = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from("site_issues")
+      .select("*, projects(name)")
+      .order("created_at", { ascending: false })
+    setIssues(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { loadIssues() }, [])
+
+  const handleLogIssue = async () => {
+    setError("")
+    if (!projectId || !description.trim()) {
+      return setError("Please select a project and describe the issue.")
+    }
+    setSubmitting(true)
+    
+    try {
+      // 1. Insert initially as uncategorized
+      const { data: newIssue, error: insErr } = await supabase
+        .from("site_issues")
+        .insert({
+          project_id: projectId,
+          user_id: user.id,
+          reported_date: reportedDate,
+          description: description.trim(),
+        })
+        .select()
+        .single()
+        
+      if (insErr) throw insErr
+
+      // Refresh UI instantly with the pending issue
+      setIssues(prev => [newIssue, ...prev])
+
+      // 2. Classify via AI using the existing endpoint
+      const prompt = `You are a construction project issue classifier. Analyze the following site issue description and respond with ONLY a JSON object (no markdown, no explanation, just the raw JSON structure).
+      
+{
+  "category": "<one of: material_delay, labour_shortage, equipment_failure, approval_pending, weather_disruption, safety_incident, quality_issue, other>",
+  "priority": "<one of: critical, high, medium, low>",
+  "confidence": "<one of: high, medium, low>"
+}
+
+Rules:
+- material_delay: Supply chain, delivery, procurement issues
+- labour_shortage: Worker unavailability, strikes, insufficient manpower
+- equipment_failure: Machinery breakdown, tool issues, crane/pump failure  
+- approval_pending: Regulatory, permit, inspection, or client approval delays
+- weather_disruption: Rain, storms, extreme heat/cold halting work
+- safety_incident: Accidents, near-misses, safety violations
+- quality_issue: Defective work, rework needed, material quality problems
+- other: Doesn't fit above categories
+
+Priority rules:
+- critical: Work completely stopped, safety risk, or >₹5L daily loss
+- high: Major delay (>1 day), significant cost impact
+- medium: Partial delay, workaround available
+- low: Minor issue, no immediate work stoppage
+
+Issue description: "${description}"
+Project: "${projects.find(p => p.id === projectId)?.name}"`
+
+      const res = await fetch("https://zdcuroihwhtixolkxgbj.supabase.co/functions/v1/ai-agent", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "user", content: prompt }], context: "" }),
+      })
+      
+      const aiData = await res.json()
+      
+      let classification = { category: "other", priority: "medium", confidence: "low" }
+      try {
+        // Try parsing the AI reply. Handle potential markdown wrapping.
+        const cleanJson = aiData.reply.replace(/```json/g, "").replace(/```/g, "").trim()
+        classification = JSON.parse(cleanJson)
+      } catch (e) {
+        console.warn("Could not parse AI classification", e)
+      }
+
+      // Validate parsed data
+      const finalCategory = ISSUE_CATEGORIES[classification.category] ? classification.category : "other"
+      const finalPriority = ISSUE_PRIORITIES[classification.priority] ? classification.priority : "medium"
+
+      // 3. Update issue with AI results
+      const { error: updErr } = await supabase
+        .from("site_issues")
+        .update({
+          ai_category: finalCategory,
+          priority: finalPriority,
+          ai_confidence: classification.confidence || 'low',
+        })
+        .eq("id", newIssue.id)
+        
+      if (updErr) throw updErr
+      
+      // Clear form & reload
+      setDescription("")
+      setProjectId("")
+      loadIssues()
+      
+    } catch (err) {
+      setError(err.message || "Something went wrong.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleUpdateStatus = async () => {
+    if (!activeIssue || !updStatus) return
+    setUpdating(true)
+    
+    const updates = { 
+      status: updStatus,
+      resolution_notes: updNotes,
+      updated_at: new Date().toISOString()
+    }
+    
+    if (updStatus === 'resolved' || updStatus === 'closed') {
+      updates.resolution_date = new Date().toISOString().split("T")[0]
+    }
+    
+    await supabase.from("site_issues").update(updates).eq("id", activeIssue.id)
+    
+    setActiveIssue(null)
+    setUpdating(false)
+    loadIssues()
+  }
+
+  const filteredIssues = issues.filter(i => {
+    if (filterStatus === "open") return i.status === "open" || i.status === "in_progress"
+    if (filterStatus === "resolved") return i.status === "resolved" || i.status === "closed"
+    return true
+  })
+
+  const openIssuesCount = issues.filter(i => i.status === "open" || i.status === "in_progress").length
+  const criticalCount = issues.filter(i => (i.status === "open" || i.status === "in_progress") && i.priority === "critical").length
+  
+  return (
+    <div style={{ padding: 28 }}>
+      <TopBar title="Site Issues" subtitle="AI-powered delay & issue tracking" notifications={notifications} onMarkAllRead={onMarkAllRead} />
+
+      {/* Form Card */}
+      <div style={{ background: C.card, borderRadius: 16, padding: 28, marginTop: 24, border: `1px solid ${C.border}` }}>
+        <h3 style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, margin: "0 0 16px", color: C.charcoal }}>Log a New Issue</h3>
+        {error && <div style={{ padding: 12, background: "#FEE2E2", color: C.danger, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
+        
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          <Select label="Project" value={projectId} onChange={e => setProjectId(e.target.value)} required
+            options={[{ value: "", label: "Select Project" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
+          <Input label="Date of Issue" type="date" value={reportedDate} onChange={e => setReportedDate(e.target.value)} required />
+        </div>
+        
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 6 }}>
+            Issue Description <span style={{color: C.danger}}>*</span>
+          </label>
+          <textarea 
+            value={description} onChange={e => setDescription(e.target.value)}
+            placeholder="Describe what happened e.g. 'Cement delivery didn't arrive, foundation work stopped for 3 hours.'"
+            style={{ width: "100%", padding: 14, borderRadius: 8, border: `1px solid ${C.border}`, fontFamily: FONT, fontSize: 14, minHeight: 100, boxSizing: "border-box", background: "#F8FAFC", resize: "vertical", outline: "none" }}
+            className="input-glow"
+          />
+        </div>
+        
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Btn onClick={handleLogIssue} disabled={submitting} icon={Bot} size="lg">
+            {submitting ? "Analyzing & Saving..." : "Log Issue & Classify"}
+          </Btn>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 16, marginTop: 24 }}>
+        <KPICard label="Active Issues" value={openIssuesCount} icon={AlertCircle} accent={C.warning} />
+        <KPICard label="Critical Priority" value={criticalCount} icon={AlertTriangle} accent={C.danger} />
+        <KPICard label="Total Logged" value={issues.length} icon={Database} accent={C.info} />
+      </div>
+
+      {/* Issues List */}
+      <div style={{ background: C.card, borderRadius: 16, marginTop: 24, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, margin: 0, color: C.charcoal }}>Issue Log</h3>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, fontFamily: FONT }}>
+            <option value="open">Active Issues</option>
+            <option value="resolved">Resolved</option>
+            <option value="all">All Issues</option>
+          </select>
+        </div>
+        
+        {loading ? <Spinner /> : filteredIssues.length === 0 ? <Empty message="No issues found" /> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: FONT }}>
+              <thead>
+                <tr style={{ background: "#F8FAFC", borderBottom: `2px solid ${C.border}` }}>
+                  <th style={{ padding: "12px 24px", textAlign: "left", color: C.charcoal }}>Date</th>
+                  <th style={{ padding: "12px 24px", textAlign: "left", color: C.charcoal }}>Project</th>
+                  <th style={{ padding: "12px 24px", textAlign: "left", color: C.charcoal }}>AI Category</th>
+                  <th style={{ padding: "12px 24px", textAlign: "left", color: C.charcoal }}>Priority</th>
+                  <th style={{ padding: "12px 24px", textAlign: "left", color: C.charcoal }}>Status</th>
+                  <th style={{ padding: "12px 24px", textAlign: "left", color: C.charcoal }}>Description</th>
+                  <th style={{ padding: "12px 24px", textAlign: "center", color: C.charcoal }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredIssues.map(i => {
+                  const cat = ISSUE_CATEGORIES[i.ai_category] || ISSUE_CATEGORIES.uncategorized
+                  const prio = ISSUE_PRIORITIES[i.priority] || ISSUE_PRIORITIES.medium
+                  const stat = ISSUE_STATUSES[i.status] || ISSUE_STATUSES.open
+                  const CatIcon = cat.icon
+                  
+                  return (
+                    <tr key={i.id} style={{ borderBottom: `1px solid ${C.border}` }} className="row-hover">
+                      <td style={{ padding: "12px 24px", whiteSpace: "nowrap", color: C.text }}>{i.reported_date}</td>
+                      <td style={{ padding: "12px 24px", fontWeight: 600, color: C.text }}>{i.projects?.name}</td>
+                      <td style={{ padding: "12px 24px" }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: cat.bg, color: cat.color, padding: "4px 10px", borderRadius: 20, fontWeight: 600, fontSize: 11, whiteSpace: "nowrap" }}>
+                          <CatIcon size={12} /> {cat.label}
+                        </div>
+                      </td>
+                      <td style={{ padding: "12px 24px" }}>
+                        <Badge label={prio.label} bg={prio.bg} color={prio.color} />
+                      </td>
+                      <td style={{ padding: "12px 24px" }}>
+                        <Badge label={stat.label} bg={stat.bg} color={stat.color} />
+                      </td>
+                      <td style={{ padding: "12px 24px", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: C.text }} title={i.description}>
+                        {i.description}
+                      </td>
+                      <td style={{ padding: "12px 24px", textAlign: "center" }}>
+                        <button onClick={() => {
+                          setActiveIssue(i)
+                          setUpdStatus(i.status)
+                          setUpdNotes(i.resolution_notes || "")
+                        }} style={{ background: "none", border: "none", color: C.info, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
+                          Update
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {activeIssue && (
+        <Modal title="Update Issue Status" onClose={() => setActiveIssue(null)}>
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ margin: "0 0 8px", fontSize: 13, color: C.textMuted }}><strong>Project:</strong> {activeIssue.projects?.name}</p>
+            <p style={{ margin: "0 0 16px", fontSize: 13, color: C.textMuted }}><strong>Reported:</strong> {activeIssue.reported_date}</p>
+            <div style={{ background: "#F8FAFC", padding: 14, borderRadius: 8, fontSize: 14, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+              {activeIssue.description}
+            </div>
+          </div>
+          
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Select label="Status" value={updStatus} onChange={e => setUpdStatus(e.target.value)} required
+              options={[
+                { value: "open", label: "Open" },
+                { value: "in_progress", label: "In Progress" },
+                { value: "resolved", label: "Resolved" },
+                { value: "closed", label: "Closed" }
+              ]} />
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.06em" }}>Resolution Notes</label>
+              <textarea 
+                value={updNotes} onChange={e => setUpdNotes(e.target.value)}
+                placeholder="How was this resolved? What's the current status?"
+                style={{ width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${C.border}`, fontFamily: FONT, fontSize: 14, minHeight: 80, boxSizing: "border-box", outline: "none" }}
+                className="input-glow"
+              />
+            </div>
+            
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 10 }}>
+              <Btn variant="secondary" onClick={() => setActiveIssue(null)}>Cancel</Btn>
+              <Btn onClick={handleUpdateStatus} disabled={updating}>{updating ? "Saving..." : "Save Update"}</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+const buildAgentContext = (projects, reports, materials = [], issues = []) => {
   if (!projects?.length) return "No project data available."
   const lines = []
 
@@ -3543,6 +4695,18 @@ const buildAgentContext = (projects, reports, materials = []) => {
   if (risks.length === 0) risks.push("No critical risks detected at this time.")
   risks.forEach(r => lines.push(r))
 
+  if (issues?.length) {
+    lines.push("")
+    lines.push("=== ACTIVE SITE ISSUES ===")
+    const activeIssues = issues.filter(i => i.status === "open" || i.status === "in_progress")
+    activeIssues.forEach(i => {
+      lines.push(`${i.reported_date} | Project: ${i.projects?.name} | Priority: ${i.priority} | AI Category: ${i.ai_category}`)
+      lines.push(`  Description: ${i.description}`)
+    })
+    if (activeIssues.length === 0) lines.push("No active site issues.")
+    lines.push("")
+  }
+
   return lines.join("\n")
 }
 
@@ -3556,7 +4720,7 @@ const QUICK_ACTIONS = [
   { label: "📅 What needs attention this week?", prompt: "Based on my current project data, what are the top 3–5 things I should focus on this week?" },
 ]
 
-const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRead }) => {
+const AIAssistant = ({ projects, reports, materials, issues, notifications, onMarkAllRead }) => {
   const [messages, setMessages] = useState([{
     role: "assistant",
     content: `👷 **BuildTrack AI Assistant** is ready.\n\nI have access to all your project data — budgets, daily reports, materials, and stage progress. Ask me anything about your projects, or use the quick actions below.\n\nYou can write in English or Hindi — I'll respond in the same language.`
@@ -3576,7 +4740,7 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
     setMessages(newMessages)
     setLoading(true)
     try {
-      const context     = buildAgentContext(projects, reports, materials)
+      const context     = buildAgentContext(projects, reports, materials, issues)
       const apiMessages = newMessages.slice(-10).map(m => ({ role: m.role, content: m.content }))
       const res  = await fetch("https://zdcuroihwhtixolkxgbj.supabase.co/functions/v1/ai-agent", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -3687,6 +4851,140 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PROFILE MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ProfileModal = ({ user, userRole, onClose }) => {
+  const [profileData, setProfileData] = useState(null)
+  const [assignments, setAssignments] = useState([])
+  const [editName, setEditName] = useState("")
+  const [editPhone, setEditPhone] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [passForm, setPassForm] = useState({ newPass: "", confirm: "" })
+  const [passMsg, setPassMsg] = useState("")
+  const [passSaving, setPassSaving] = useState(false)
+  const [activeSection, setActiveSection] = useState("info")
+
+  useEffect(() => {
+    const load = async () => {
+      const [{ data: p }, { data: a }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", user.id).single(),
+        supabase.from("user_project_assignments").select("*, projects(name), user_roles(name)").eq("user_id", user.id),
+      ])
+      if (p) { setProfileData(p); setEditName(p.full_name || ""); setEditPhone(p.phone || "") }
+      setAssignments(a || [])
+    }
+    load()
+  }, [user.id])
+
+  const handleSaveProfile = async () => {
+    setSaving(true)
+    await supabase.from("profiles").update({ full_name: editName.trim(), phone: editPhone.trim() || null }).eq("id", user.id)
+    setProfileData(d => ({ ...d, full_name: editName.trim(), phone: editPhone.trim() }))
+    setSaving(false)
+  }
+
+  const handleChangePassword = async () => {
+    setPassMsg("")
+    if (!passForm.newPass || passForm.newPass.length < 6) return setPassMsg("Password must be at least 6 characters.")
+    if (passForm.newPass !== passForm.confirm) return setPassMsg("Passwords do not match.")
+    setPassSaving(true)
+    const { error } = await supabase.auth.updateUser({ password: passForm.newPass })
+    if (error) setPassMsg(error.message)
+    else { setPassMsg("Password updated successfully!"); setPassForm({ newPass: "", confirm: "" }) }
+    setPassSaving(false)
+  }
+
+  const sections = [
+    { key: "info", label: "Profile", icon: User },
+    { key: "password", label: "Security", icon: Key },
+    { key: "projects", label: "My Projects", icon: FolderOpen },
+  ]
+
+  return (
+    <Modal title="My Profile" onClose={onClose} width={560}>
+      {/* Section tabs */}
+      <div style={{ display: "flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 3, marginBottom: 20 }}>
+        {sections.map(s => {
+          const active = activeSection === s.key
+          const Icon = s.icon
+          return (
+            <button key={s.key} onClick={() => setActiveSection(s.key)} style={{
+              flex: 1, padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+              background: active ? "#fff" : "transparent", color: active ? C.accent : C.textMuted,
+              fontFamily: FONT, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center",
+              justifyContent: "center", gap: 6, transition: "all 0.2s",
+              boxShadow: active ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+            }}>
+              <Icon size={14} /> {s.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Profile Info */}
+      {activeSection === "info" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: 16, background: "#F8FAFC", borderRadius: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <User size={24} color="#fff" />
+            </div>
+            <div>
+              <p style={{ fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 700, color: C.text, margin: 0 }}>{profileData?.full_name || "Loading..."}</p>
+              <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: "2px 0 0" }}>{user.email}</p>
+              <StatusBadge status={formatRole(userRole)} />
+            </div>
+          </div>
+          <Input label="Full Name" value={editName} onChange={e => setEditName(e.target.value)} icon={User} />
+          <Input label="Phone" value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" />
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Btn onClick={handleSaveProfile} disabled={saving} icon={CheckCircle}>{saving ? "Saving..." : "Save Profile"}</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Security */}
+      {activeSection === "password" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ background: "#F8FAFC", borderRadius: 12, padding: 16, border: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Key size={16} color={C.accent} />
+              <span style={{ fontFamily: FONT_HEADING, fontSize: 14, fontWeight: 700, color: C.text }}>Change Password</span>
+            </div>
+            <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0 }}>Create a new password. Must be at least 6 characters.</p>
+          </div>
+          {passMsg && <p style={{ fontFamily: FONT, fontSize: 13, color: passMsg.includes("success") ? C.success : C.danger, background: passMsg.includes("success") ? "#D1FAE5" : "#FEE2E2", padding: "10px 14px", borderRadius: 8, margin: 0 }}>{passMsg}</p>}
+          <Input label="New Password" type="password" value={passForm.newPass} onChange={e => setPassForm(f => ({ ...f, newPass: e.target.value }))} placeholder="Enter new password" />
+          <Input label="Confirm Password" type="password" value={passForm.confirm} onChange={e => setPassForm(f => ({ ...f, confirm: e.target.value }))} placeholder="Confirm new password" />
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Btn onClick={handleChangePassword} disabled={passSaving} icon={Key}>{passSaving ? "Updating..." : "Update Password"}</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* My Projects */}
+      {activeSection === "projects" && (
+        <div>
+          {assignments.length === 0 ? <Empty message="No project assignments" sub="You have not been assigned to any projects yet." /> : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {assignments.map(a => (
+                <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "#F8FAFC", borderRadius: 10, border: `1px solid ${C.border}` }}>
+                  <div>
+                    <p style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>{a.projects?.name || "Unknown"}</p>
+                    <p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: "2px 0 0" }}>Assigned {new Date(a.assigned_at).toLocaleDateString("en-IN")}</p>
+                  </div>
+                  <StatusBadge status={a.user_roles?.name || "Member"} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // APP ROOT
 //
 // Responsibilities:
@@ -3705,10 +5003,12 @@ export default function App() {
   const [assignedProjectIds, setAssignedProjectIds] = useState([])
   const [projects,           setProjects]           = useState([])
   const [reports,            setReports]            = useState([])
+  const [issues,             setIssues]             = useState([])
   const [notifications,      setNotifications]      = useState([])
   const [loading,            setLoading]            = useState(true)
   const [activeProjectId,    setActiveProjectId]    = useState(null)
   const [scrollProgress,     setScrollProgress]     = useState(0)
+  const [showProfile,        setShowProfile]        = useState(false)
 
   // Load Google Fonts once on mount
   useEffect(() => {
@@ -3752,7 +5052,7 @@ export default function App() {
         setScreen("app")
       } else {
         setUser(null); setUserRole("viewer"); setAssignedProjectIds([])
-        setScreen("landing"); setProjects([]); setReports([])
+        setScreen("landing"); setProjects([]); setReports([]); setIssues([])
       }
     })
 
@@ -3763,12 +5063,13 @@ export default function App() {
   useEffect(() => {
     if (!user) return
     const loadData = async () => {
-      const [{ data: p }, { data: r }, { data: n }] = await Promise.all([
+      const [{ data: p }, { data: r }, { data: i }, { data: n }] = await Promise.all([
         supabase.from("projects").select("*").order("created_at", { ascending: false }),
         supabase.from("daily_reports").select("*, projects(name)").order("report_date", { ascending: false }),
+        supabase.from("site_issues").select("*, projects(name)").order("reported_date", { ascending: false }),
         supabase.from("notifications").select("*").order("created_at", { ascending: false }),
       ])
-      setProjects(p || []); setReports(r || []); setNotifications(n || [])
+      setProjects(p || []); setReports(r || []); setIssues(i || []); setNotifications(n || [])
     }
     loadData()
   }, [user])
@@ -3818,7 +5119,8 @@ export default function App() {
     reports:          <Reports       user={user} userRole={userRole} projects={visibleProjects} reports={reports} {...sharedProps} />,
     materials:        <Materials     user={user} projects={visibleProjects} {...sharedProps} />,
     financials:       <Financials    projects={visibleProjects} reports={reports} {...sharedProps} />,
-    "ai-assistant":   <AIAssistant   projects={visibleProjects} reports={reports} materials={[]} {...sharedProps} />,
+    "site-issues":    <SiteIssues    user={user} projects={visibleProjects} {...sharedProps} />,
+    "ai-assistant":   <AIAssistant   projects={visibleProjects} reports={reports} materials={[]} issues={issues} {...sharedProps} />,
     users:            <UserManagement user={user} userRole={userRole} projects={projects} {...sharedProps} />,
     "project-detail": <ProjectDetail
                         projectId={activeProjectId}
@@ -3850,7 +5152,7 @@ export default function App() {
       `}</style>
       <div className="scroll-progress" style={{ width: `${scrollProgress}%` }} />
       <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: FONT }}>
-        {!isMobile && <Sidebar page={page} setPage={setPage} user={user} userRole={userRole} onSignOut={handleSignOut} />}
+        {!isMobile && <Sidebar page={page} setPage={setPage} user={user} userRole={userRole} onSignOut={handleSignOut} onProfileClick={() => setShowProfile(true)} />}
       <main
         onScroll={e => {
           const main = e.currentTarget
@@ -3866,6 +5168,7 @@ export default function App() {
       </main>
       {isMobile && <MobileNav page={page} setPage={setPage} user={user} userRole={userRole} onSignOut={handleSignOut} />}
       </div>
+      {showProfile && user && <ProfileModal user={user} userRole={userRole} onClose={() => setShowProfile(false)} />}
     </>
   )
 }
