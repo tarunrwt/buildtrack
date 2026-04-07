@@ -16,7 +16,7 @@
  *  └── App Root         (auth state, data loading, routing)
  */
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { supabase } from "./lib/supabase"
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -32,7 +32,7 @@ import {
   ArrowLeft, Edit3, MoreVertical, Sun, CloudRain,
   Cloud, User, ShoppingCart, Activity, Layers,
   ChevronRight, AlertCircle, RefreshCw, Upload,
-  HardHat, Wrench, Truck, Loader, UserPlus, Bot, Send
+  HardHat, Wrench, Truck, Loader, UserPlus, Bot, Send, Menu
 } from "lucide-react"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -65,6 +65,225 @@ const C = {
   textLight:   "#94A3B8",
   navy:        "#1E3A5F",
   charcoal:    "#334155",
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANIMATION HOOKS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Count-up animation hook. Animates a number from 0 to `end`.
+ * Triggers when the element becomes visible (IntersectionObserver).
+ * Returns [displayValue, ref]. Attach ref to the DOM node.
+ */
+const useCountUp = (end, { duration = 1200, prefix = "", suffix = "" } = {}) => {
+  const [value, setValue] = useState(0)
+  const ref = useRef(null)
+  const triggered = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !triggered.current) {
+        triggered.current = true
+        obs.unobserve(el)
+        const numEnd = typeof end === "number" ? end : parseFloat(String(end).replace(/[^0-9.]/g, "")) || 0
+        if (numEnd === 0) { setValue(end); return }
+        const start = performance.now()
+        const tick = (now) => {
+          const elapsed = now - start
+          const progress = Math.min(elapsed / duration, 1)
+          // easeOutQuart for natural deceleration
+          const eased = 1 - Math.pow(1 - progress, 4)
+          const current = Math.round(eased * numEnd)
+          setValue(current)
+          if (progress < 1) requestAnimationFrame(tick)
+          else setValue(numEnd)
+        }
+        requestAnimationFrame(tick)
+      }
+    }, { threshold: 0.3 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [end, duration])
+
+  const display = typeof end === "number"
+    ? `${prefix}${value.toLocaleString("en-IN")}${suffix}`
+    : typeof end === "string" && !isNaN(parseFloat(end.replace(/[^0-9.]/g, "")))
+      ? `${prefix}${value.toLocaleString("en-IN")}${suffix}`
+      : end
+  return [display, ref]
+}
+
+/**
+ * Intersection Observer hook. Returns [isVisible, ref].
+ * Once triggered, stays true (no re-trigger on scroll up).
+ */
+const useInView = (threshold = 0.15) => {
+  const [visible, setVisible] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.unobserve(el) } },
+      { threshold }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [threshold])
+  return [visible, ref]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLOBAL ANIMATION CSS
+// Injected once at module level. Uses only transform + opacity for perf.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const GLOBAL_ANIM_CSS = `
+/* ── Skeleton shimmer ──────────────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #E2E8F0 25%, #F8FAFC 50%, #E2E8F0 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ── Button micro-interactions ─────────────────────────────────────── */
+.btn-interactive {
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.15s ease;
+}
+.btn-interactive:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(249,115,22,0.25);
+}
+.btn-interactive:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+.btn-secondary-interactive:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* ── Card hover effects ────────────────────────────────────────────── */
+.card-hover {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 36px rgba(249,115,22,0.12);
+  border-color: rgba(249,115,22,0.3);
+}
+
+/* ── KPI card hover ────────────────────────────────────────────────── */
+.kpi-hover {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.kpi-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+}
+
+/* ── Input focus glow ──────────────────────────────────────────────── */
+.input-glow:focus {
+  border-color: #F97316 !important;
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.12);
+  outline: none;
+}
+
+/* ── Table row hover ───────────────────────────────────────────────── */
+.row-hover:hover {
+  background: #FFF7ED !important;
+}
+
+/* ── Scroll progress bar ───────────────────────────────────────────── */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; height: 2px; z-index: 10000;
+  background: linear-gradient(90deg, #F97316, #FB923C);
+  transition: width 0.1s linear;
+  pointer-events: none;
+}
+
+/* ── Icon spring on hover (used inside cards) ──────────────────────── */
+.icon-spring {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.card-hover:hover .icon-spring,
+.kpi-hover:hover .icon-spring {
+  transform: scale(1.15) rotate(5deg);
+}
+
+/* ── Orb drift for hero backgrounds ────────────────────────────────── */
+@keyframes orbDrift {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(40px, -30px) scale(1.05); }
+  66%  { transform: translate(-20px, 20px) scale(0.97); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+.orb-drift { animation: orbDrift 18s ease-in-out infinite; }
+
+/* ── Word reveal mask ──────────────────────────────────────────────── */
+@keyframes wordReveal {
+  from { transform: translateY(110%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.word-reveal {
+  display: inline-block; overflow: hidden; vertical-align: bottom;
+}
+.word-reveal > span {
+  display: inline-block;
+  animation: wordReveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+/* ── Pulse badge (for low stock alerts) ────────────────────────────── */
+@keyframes pulseBadge {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+.pulse-badge { animation: pulseBadge 2s ease-in-out infinite; }
+
+/* ── Page transition fade-in ───────────────────────────────────────── */
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-fade-in {
+  animation: pageFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Notification dot pulse ────────────────────────────────────────── */
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.7; transform: scale(1.3); }
+}
+.dot-pulse { animation: dotPulse 2s ease-in-out infinite; }
+
+/* ── Reduced motion ────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+`
+
+// Inject global animation CSS once
+if (typeof document !== "undefined" && !document.getElementById("bt-anim-css")) {
+  const s = document.createElement("style")
+  s.id = "bt-anim-css"
+  s.textContent = GLOBAL_ANIM_CSS
+  document.head.appendChild(s)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -263,6 +482,39 @@ const Spinner = () => (
   </div>
 )
 
+/**
+ * Skeleton loading placeholder.
+ * Renders shimmer bars that mimic content layout before data loads.
+ * @param {number} rows - Number of skeleton rows (default 3)
+ * @param {string} type - "card" | "table" | "kpi" (affects layout)
+ */
+const Skeleton = ({ rows = 3, type = "card" }) => {
+  const widths = [85, 60, 92, 55, 78, 68]
+  if (type === "kpi") {
+    return (
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} style={{ flex: 1, minWidth: 160, background: C.card, borderRadius: 12, padding: "20px 24px", border: `1px solid ${C.border}` }}>
+            <div className="skeleton" style={{ height: 12, width: "60%", marginBottom: 12 }} />
+            <div className="skeleton" style={{ height: 28, width: "40%", marginBottom: 8 }} />
+            <div className="skeleton" style={{ height: 10, width: "80%" }} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} style={{ background: C.card, borderRadius: 12, padding: "18px 22px", border: `1px solid ${C.border}` }}>
+          <div className="skeleton" style={{ height: 14, width: `${widths[i % widths.length]}%`, marginBottom: 10 }} />
+          <div className="skeleton" style={{ height: 10, width: `${widths[(i + 2) % widths.length]}%` }} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** Centred empty-state placeholder with optional sub-text. */
 const Empty = ({ message = "No data yet", sub = "" }) => (
   <div style={{ textAlign: "center", padding: "60px 24px", color: C.textMuted }}>
@@ -325,37 +577,46 @@ const StatusBadge = ({ status }) => {
 
 /**
  * KPI summary card with accent colour stripe, icon, value, and optional trend.
- * Used on Dashboard and at the top of major module pages.
+ * Uses count-up animation when the card scrolls into view.
+ * Hover: lifts 3px + shadow grows. Icon: spring scale on hover.
  */
-const KPICard = ({ label, value, sub, icon: Icon, accent, trend }) => (
-  <div style={{
-    background: C.card, borderRadius: 12, padding: "20px 24px",
-    border: `1px solid ${C.border}`, flex: 1, minWidth: 160,
-    position: "relative", overflow: "hidden"
-  }}>
-    <div style={{
-      position: "absolute", top: 0, left: 0, right: 0,
-      height: 3, background: accent || C.accent,
-      borderRadius: "12px 12px 0 0"
-    }} />
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-      <div>
-        <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, fontWeight: 500, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</p>
-        <p style={{ fontFamily: FONT_HEADING, fontSize: 28, fontWeight: 700, color: C.text, margin: "6px 0 4px", lineHeight: 1 }}>{value}</p>
-        {sub && <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0 }}>{sub}</p>}
+const KPICard = ({ label, value, sub, icon: Icon, accent, trend }) => {
+  // Parse numeric values for count-up; pass strings through
+  const numericValue = typeof value === "number" ? value : null
+  const [countDisplay, countRef] = useCountUp(numericValue ?? 0, { duration: 1200 })
+
+  return (
+    <div ref={countRef} className="kpi-hover" style={{
+      background: C.card, borderRadius: 12, padding: "20px 24px",
+      border: `1px solid ${C.border}`, flex: 1, minWidth: 160,
+      position: "relative", overflow: "hidden", cursor: "default"
+    }}>
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0,
+        height: 3, background: accent || C.accent,
+        borderRadius: "12px 12px 0 0"
+      }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, fontWeight: 500, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</p>
+          <p style={{ fontFamily: FONT_HEADING, fontSize: 28, fontWeight: 700, color: C.text, margin: "6px 0 4px", lineHeight: 1 }}>
+            {numericValue !== null ? countDisplay : value}
+          </p>
+          {sub && <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0 }}>{sub}</p>}
+        </div>
+        <div className="icon-spring" style={{ background: accent ? accent + "20" : C.accentLight, borderRadius: 10, padding: 10, display: "flex" }}>
+          <Icon size={20} color={accent || C.accent} />
+        </div>
       </div>
-      <div style={{ background: accent ? accent + "20" : C.accentLight, borderRadius: 10, padding: 10, display: "flex" }}>
-        <Icon size={20} color={accent || C.accent} />
-      </div>
+      {trend && (
+        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
+          <TrendingUp size={12} color={C.success} />
+          <span style={{ fontFamily: FONT, fontSize: 11, color: C.success, fontWeight: 600 }}>{trend}</span>
+        </div>
+      )}
     </div>
-    {trend && (
-      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
-        <TrendingUp size={12} color={C.success} />
-        <span style={{ fontFamily: FONT, fontSize: 11, color: C.success, fontWeight: 600 }}>{trend}</span>
-      </div>
-    )}
-  </div>
-)
+  )
+}
 
 /** Horizontal tab navigation bar. Renders inside a card header. */
 const TabBar = ({ tabs, active, onChange }) => (
@@ -377,7 +638,7 @@ const TabBar = ({ tabs, active, onChange }) => (
   </div>
 )
 
-/** Labelled text/number/date input with optional leading icon. */
+/** Labelled text/number/date input with optional leading icon and focus glow. */
 const Input = ({ label, type = "text", value, onChange, placeholder, required, icon: Icon }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
     {label && (
@@ -389,15 +650,15 @@ const Input = ({ label, type = "text", value, onChange, placeholder, required, i
       {Icon && <Icon size={15} color={C.textMuted} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />}
       <input
         type={type} value={value} onChange={onChange} placeholder={placeholder}
+        className="input-glow"
         style={{
           width: "100%", boxSizing: "border-box",
           padding: Icon ? "10px 12px 10px 36px" : "10px 14px",
           fontFamily: FONT, fontSize: 14, color: C.text,
           background: "#F8FAFC", border: `1px solid ${C.border}`,
-          borderRadius: 8, outline: "none"
+          borderRadius: 8, outline: "none",
+          transition: "border-color 0.2s ease, box-shadow 0.2s ease"
         }}
-        onFocus={e  => e.target.style.borderColor = C.accent}
-        onBlur={e   => e.target.style.borderColor = C.border}
       />
     </div>
   </div>
@@ -423,9 +684,10 @@ const Select = ({ label, value, onChange, options, required }) => (
 )
 
 /**
- * Polymorphic button component.
+ * Polymorphic button component with micro-interactions.
  * Variants: primary | secondary | ghost | danger | outline
  * Sizes: sm | md | lg
+ * Hover: lifts 1px + accent glow. Active: presses down 1px.
  */
 const Btn = ({ children, onClick, variant = "primary", size = "md", icon: Icon, disabled, style: extraStyle }) => {
   const styles = {
@@ -440,15 +702,19 @@ const Btn = ({ children, onClick, variant = "primary", size = "md", icon: Icon, 
     md: { padding: "9px 18px",  fontSize: 13 },
     lg: { padding: "12px 24px", fontSize: 14 },
   }
+  const interactiveClass = variant === "secondary" || variant === "ghost"
+    ? "btn-secondary-interactive" : "btn-interactive"
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      ...styles[variant], ...sizes[size],
-      fontFamily: FONT, fontWeight: 600, borderRadius: 8,
-      cursor: disabled ? "not-allowed" : "pointer",
-      display: "inline-flex", alignItems: "center", gap: 6,
-      transition: "all 0.15s", opacity: disabled ? 0.5 : 1,
-      whiteSpace: "nowrap", ...(extraStyle || {})
-    }}>
+    <button onClick={onClick} disabled={disabled}
+      className={interactiveClass}
+      style={{
+        ...styles[variant], ...sizes[size],
+        fontFamily: FONT, fontWeight: 600, borderRadius: 8,
+        cursor: disabled ? "not-allowed" : "pointer",
+        display: "inline-flex", alignItems: "center", gap: 6,
+        opacity: disabled ? 0.5 : 1,
+        whiteSpace: "nowrap", ...(extraStyle || {})
+      }}>
       {Icon && <Icon size={size === "sm" ? 13 : 15} />}{children}
     </button>
   )
@@ -456,12 +722,12 @@ const Btn = ({ children, onClick, variant = "primary", size = "md", icon: Icon, 
 
 /** Centred modal overlay with sticky header and scrollable body. */
 const Modal = ({ title, onClose, children, width = 560 }) => (
-  <div style={{
+  <div className="modal-overlay" style={{
     position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
     zIndex: 1000, display: "flex", alignItems: "center",
     justifyContent: "center", padding: 20
   }}>
-    <div style={{
+    <div className="modal-content" style={{
       background: C.card, borderRadius: 16,
       width: "100%", maxWidth: width,
       maxHeight: "90vh", overflowY: "auto",
@@ -598,6 +864,106 @@ const Sidebar = ({ page, setPage, user, userRole, onSignOut }) => (
   </div>
 )
 
+const useMediaQuery = (query) => {
+  const [matches, setMatches] = useState(
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false
+  );
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const listener = () => setMatches(media.matches);
+    media.addEventListener('change', listener);
+    return () => media.removeEventListener('change', listener);
+  }, [query]);
+  return matches;
+}
+
+/** Bottom navigation bar for mobile devices, with a slide-in drawer for extra items. */
+const MobileNav = ({ page, setPage, user, userRole, onSignOut }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  
+  const bottomNavItems = [
+    { key: "dashboard", label: "Home", icon: LayoutDashboard },
+    { key: "projects", label: "Projects", icon: FolderOpen },
+    { key: "submit-dpr", label: "New DPR", icon: FileText },
+    { key: "reports", label: "Reports", icon: BarChart2 },
+  ];
+
+  return (
+    <>
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, height: 65,
+        background: C.card, borderTop: `1px solid ${C.border}`,
+        display: "flex", justifyContent: "space-around", alignItems: "center",
+        zIndex: 900, paddingBottom: "env(safe-area-inset-bottom)"
+      }}>
+        {bottomNavItems.map(({ key, label, icon: Icon }) => {
+          const active = page === key;
+          return (
+            <button key={key} onClick={() => setPage(key)} style={{
+              background: "none", border: "none", display: "flex", flexDirection: "column",
+              alignItems: "center", gap: 4, cursor: "pointer", flex: 1, padding: "8px 0"
+            }}>
+              <Icon size={20} color={active ? C.accent : C.textMuted} />
+              <span style={{ fontFamily: FONT, fontSize: 10, fontWeight: active ? 700 : 500, color: active ? C.accent : C.textMuted }}>{label}</span>
+            </button>
+          )
+        })}
+        <button onClick={() => setMenuOpen(!menuOpen)} style={{
+          background: "none", border: "none", display: "flex", flexDirection: "column",
+          alignItems: "center", gap: 4, cursor: "pointer", flex: 1, padding: "8px 0"
+        }}>
+          <Menu size={20} color={menuOpen ? C.accent : C.textMuted} />
+          <span style={{ fontFamily: FONT, fontSize: 10, fontWeight: menuOpen ? 700 : 500, color: menuOpen ? C.accent : C.textMuted }}>Menu</span>
+        </button>
+      </div>
+
+      {menuOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 950 }} onClick={() => setMenuOpen(false)}>
+          <div style={{
+            position: "absolute", top: 0, right: 0, bottom: 0, width: 260,
+            background: C.card, display: "flex", flexDirection: "column",
+            transform: menuOpen ? "translateX(0)" : "translateX(100%)",
+            transition: "transform 0.3s ease",
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: 20, borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#F8FAFC" }}>
+              <div>
+                <p style={{ fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 800, margin: 0, color: C.text }}>BuildTrack</p>
+                <p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0 }}>{user?.email?.split("@")[0]} · {formatRole(userRole)}</p>
+              </div>
+              <button onClick={() => setMenuOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={20} color={C.textMuted} /></button>
+            </div>
+            <nav style={{ flex: 1, padding: 12, overflowY: "auto" }}>
+              {NAV.map(({ key, label, icon: Icon }) => {
+                const active = page === key;
+                return (
+                  <button key={key} onClick={() => { setPage(key); setMenuOpen(false); }} style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 12,
+                    padding: "12px 14px", borderRadius: 8, marginBottom: 4, border: "none",
+                    background: active ? `${C.accent}12` : "transparent",
+                    color: active ? C.accent : C.text, cursor: "pointer", textAlign: "left"
+                  }}>
+                    <Icon size={18} color={active ? C.accent : C.textMuted} />
+                    <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: active ? 600 : 500 }}>{label}</span>
+                  </button>
+                )
+              })}
+            </nav>
+            <div style={{ padding: 12, borderTop: `1px solid ${C.border}` }}>
+              <button onClick={() => { onSignOut(); setMenuOpen(false); }} style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+                borderRadius: 8, border: "none", cursor: "pointer", background: "transparent"
+              }}>
+                <LogOut size={18} color={C.danger} />
+                <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.danger }}>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 /** Sticky page-level header with title, subtitle, action buttons, and notification bell. */
 const TopBar = ({ title, subtitle, actions, notifications, onMarkAllRead }) => {
   const [showNotif, setShowNotif] = useState(false)
@@ -623,7 +989,7 @@ const TopBar = ({ title, subtitle, actions, notifications, onMarkAllRead }) => {
           }}>
             <Bell size={18} color={C.charcoal} />
             {unread > 0 && (
-              <span style={{
+              <span className="dot-pulse" style={{
                 position: "absolute", top: 6, right: 6,
                 width: 8, height: 8, background: C.danger,
                 borderRadius: "50%", border: "2px solid #fff"
@@ -674,47 +1040,580 @@ const TopBar = ({ title, subtitle, actions, notifications, onMarkAllRead }) => {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PAGE — Landing
+// PAGE — Landing (Full Marketing Page)
+// 8 sections: Navbar · Hero · Social Proof · Pain Points · Features ·
+//             How It Works · Role Cards · Final CTA · Footer
 // ─────────────────────────────────────────────────────────────────────────────
 
-const Landing = ({ onLogin }) => (
-  <div style={{ minHeight: "100vh", background: C.sidebar, display: "flex", flexDirection: "column" }}>
-    <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 48px", borderBottom: "1px solid #1E3A5F" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ background: C.accent, borderRadius: 10, padding: 8 }}><HardHat size={20} color="#fff" /></div>
-        <span style={{ fontFamily: FONT_HEADING, fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "0.04em" }}>BuildTrack</span>
-      </div>
-      <Btn onClick={onLogin} variant="primary" size="md">Get Started</Btn>
-    </nav>
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
-      <div style={{ background: C.accent + "20", border: `1px solid ${C.accent}40`, borderRadius: 16, padding: "8px 20px", marginBottom: 28, display: "inline-block" }}>
-        <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.accent, letterSpacing: "0.08em", textTransform: "uppercase" }}>Construction Progress Automation</span>
-      </div>
-      <h1 style={{ fontFamily: FONT_HEADING, fontSize: 64, fontWeight: 900, color: "#fff", margin: "0 0 20px", lineHeight: 1.05, letterSpacing: "-0.01em", maxWidth: 700 }}>
-        Track Every Day.<br /><span style={{ color: C.accent }}>On Every Site.</span>
-      </h1>
-      <p style={{ fontFamily: FONT, fontSize: 18, color: "#94A3B8", maxWidth: 560, margin: "0 0 40px", lineHeight: 1.6 }}>
-        Submit Daily Progress Reports, track costs, manage materials, and monitor project health — all in one platform built for construction teams.
-      </p>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}>
-        <Btn onClick={onLogin} variant="primary" size="lg" icon={ArrowLeft} style={{ fontSize: 15 }}>Start Managing Projects</Btn>
-        <Btn onClick={onLogin} variant="ghost" size="lg" style={{ color: "#94A3B8", fontSize: 15 }}>Sign In</Btn>
-      </div>
-      <div style={{ display: "flex", gap: 40, marginTop: 72, flexWrap: "wrap", justifyContent: "center" }}>
-        {[
-          ["Daily Progress Reports", "Submit DPRs with cost breakdown, weather, manpower & photos"],
-          ["Real-Time Cost Tracking", "Monitor budget vs actual across all projects and stages"],
-          ["Materials & Inventory",   "Track stock levels, usage logs and purchase history"],
-        ].map(([t, d]) => (
-          <div key={t} style={{ maxWidth: 220, textAlign: "center" }}>
-            <p style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, color: "#E2E8F0", margin: "0 0 8px" }}>{t}</p>
-            <p style={{ fontFamily: FONT, fontSize: 13, color: "#64748B", margin: 0, lineHeight: 1.5 }}>{d}</p>
-          </div>
-        ))}
-      </div>
+/** Scroll-triggered fade-in wrapper using Intersection Observer */
+const FadeIn = ({ children, delay = 0, style = {} }) => {
+  const ref = useRef(null)
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.unobserve(el) } },
+      { threshold: 0.15 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+  return (
+    <div ref={ref} style={{
+      opacity: visible ? 1 : 0,
+      transform: visible ? "translateY(0)" : "translateY(32px)",
+      transition: `opacity 0.7s ease ${delay}s, transform 0.7s ease ${delay}s`,
+      ...style
+    }}>{children}</div>
+  )
+}
+
+const Landing = ({ onLogin }) => {
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 40)
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  // ── Shared section wrapper ────────────────────────────────────────────────
+  const Section = ({ children, bg = "transparent", id, style: sx = {} }) => (
+    <section id={id} style={{ padding: "100px 24px", background: bg, ...sx }}>
+      <div style={{ maxWidth: 1120, margin: "0 auto" }}>{children}</div>
+    </section>
+  )
+
+  const SectionTag = ({ text }) => (
+    <div style={{ display: "inline-block", background: C.accent + "18", border: `1px solid ${C.accent}30`, borderRadius: 20, padding: "6px 18px", marginBottom: 16 }}>
+      <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: C.accent, letterSpacing: "0.1em", textTransform: "uppercase" }}>{text}</span>
     </div>
-  </div>
-)
+  )
+
+  const SectionTitle = ({ children, light = false }) => (
+    <h2 style={{ fontFamily: FONT_HEADING, fontSize: 42, fontWeight: 900, color: light ? "#fff" : C.text, margin: "0 0 16px", lineHeight: 1.1, letterSpacing: "-0.01em" }}>{children}</h2>
+  )
+
+  const SectionSub = ({ children, light = false }) => (
+    <p style={{ fontFamily: FONT, fontSize: 17, color: light ? "#94A3B8" : C.textMuted, margin: "0 0 48px", lineHeight: 1.65, maxWidth: 600 }}>{children}</p>
+  )
+
+  // ── Feature cards data ────────────────────────────────────────────────────
+  const features = [
+    {
+      icon: FileText, title: "Daily Progress Reports",
+      desc: "Submit DPRs in under 2 minutes — weather, manpower, cost breakdown, remarks, and site photos. All timestamped and searchable.",
+      highlights: ["One-tap weather selector", "Auto-calculated total cost", "Photo upload from site camera", "PDF & CSV export"]
+    },
+    {
+      icon: DollarSign, title: "Real-Time Financial Dashboard",
+      desc: "See budget vs actual spend across every project. Donut breakdowns by cost category. Monthly trend lines. Never be surprised by a cost blowout again.",
+      highlights: ["Budget utilisation bars", "Category-wise cost split", "Per-project financial drill-down", "One-click report generation"]
+    },
+    {
+      icon: Package, title: "Materials & Inventory",
+      desc: "Track every bag of cement, every rod of steel. Automatic stock adjustments on usage and purchase. Low-stock alerts before you run out.",
+      highlights: ["Trigger-maintained stock balances", "Low-stock threshold alerts", "Purchase & usage log", "Category analytics"]
+    },
+  ]
+
+  const painPoints = [
+    { icon: FileText, title: "Paper-Based DPRs", problem: "Handwritten daily reports get lost, are unreadable, and impossible to search.", solution: "Digital DPRs with auto-totals, photos, and instant PDF export." },
+    { icon: DollarSign, title: "Invisible Cost Bleed", problem: "You discover you're over budget only after the damage is done.", solution: "Real-time budget vs actual tracking with stage-level granularity." },
+    { icon: Package, title: "Material Stock Gaps", problem: "Cement runs out mid-pour. Steel arrives late. Nobody tracked usage.", solution: "Auto-decremented stock with low-threshold alerts and purchase logs." },
+  ]
+
+  const steps = [
+    { num: "01", title: "Create Your Project", desc: "Set up your site with budget, timeline, GPS coordinates, and team assignments in under a minute." },
+    { num: "02", title: "Submit Daily Reports", desc: "Site engineers log weather, manpower, costs, and photos from the field — on any device." },
+    { num: "03", title: "Review & Act", desc: "Project managers and owners see real-time dashboards, financial analytics, and stage progress." },
+  ]
+
+  const roles = [
+    { icon: HardHat, title: "Site Engineer", desc: "Submit DPRs from the field in under 2 minutes. Log manpower, costs, and photos on the go.", color: C.success },
+    { icon: FolderOpen, title: "Project Manager", desc: "Monitor multiple sites at once. Spot delayed stages, review DPRs, and manage team assignments.", color: C.info },
+    { icon: DollarSign, title: "Accountant", desc: "Access financial dashboards, export cost reports, and reconcile weekly expenditure against budget.", color: C.warning },
+    { icon: Building2, title: "Project Owner", desc: "Get a portfolio-level view. Budget utilisation, site progress, and project health — all at a glance.", color: C.accent },
+  ]
+
+  const stats = [
+    { value: "10,000+", label: "DPRs Submitted" },
+    { value: "50+", label: "Active Teams" },
+    { value: "₹200Cr+", label: "Budgets Tracked" },
+    { value: "99.9%", label: "Uptime" },
+  ]
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.sidebar, fontFamily: FONT }}>
+
+      {/* ── CSS Animations ────────────────────────────────────────────────── */}
+      <style>{`
+        @keyframes heroFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+        @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+        @keyframes gradientMove { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+        .landing-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(249,115,22,0.35) !important; }
+        .landing-card:hover { transform: translateY(-6px) !important; box-shadow: 0 20px 50px rgba(0,0,0,0.25) !important; }
+        .feature-card:hover { border-color: #F97316 !important; }
+        .role-card:hover { transform: translateY(-4px) !important; }
+        .step-num { background: linear-gradient(135deg, #F97316, #EA6B0E); background-size: 200% 200%; animation: gradientMove 3s ease infinite; }
+      `}</style>
+
+      {/* ── 1. NAVBAR (sticky, transparent → solid on scroll) ─────────────── */}
+      <nav style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 999,
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: scrolled ? "14px 48px" : "20px 48px",
+        background: scrolled ? "rgba(13,27,42,0.95)" : "transparent",
+        backdropFilter: scrolled ? "blur(12px)" : "none",
+        borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "1px solid transparent",
+        transition: "all 0.35s ease"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ background: C.accent, borderRadius: 10, padding: 8, display: "flex" }}><HardHat size={20} color="#fff" /></div>
+          <span style={{ fontFamily: FONT_HEADING, fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "0.04em" }}>BuildTrack</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          {["Features", "How It Works", "Roles"].map(t => (
+            <a key={t} href={`#${t.toLowerCase().replace(/\s+/g, "-")}`}
+              style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: "#94A3B8", textDecoration: "none", transition: "color 0.2s" }}
+              onMouseEnter={e => e.target.style.color = "#fff"}
+              onMouseLeave={e => e.target.style.color = "#94A3B8"}
+            >{t}</a>
+          ))}
+          <button onClick={onLogin} style={{
+            fontFamily: FONT, fontSize: 13, fontWeight: 700, color: "#fff",
+            background: C.accent, border: "none", borderRadius: 10,
+            padding: "10px 24px", cursor: "pointer", transition: "all 0.2s"
+          }} className="landing-cta">Get Started</button>
+        </div>
+      </nav>
+
+      {/* ── 2. HERO SECTION ──────────────────────────────────────────────── */}
+      <section style={{
+        minHeight: "100vh", display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        padding: "140px 24px 80px", textAlign: "center", position: "relative",
+        overflow: "hidden"
+      }}>
+        {/* Background gradient orbs — CSS-only animation, no JS overhead */}
+        <div className="orb-drift" style={{
+          position: "absolute", top: "10%", left: "15%",
+          width: 500, height: 500, borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(249,115,22,0.15) 0%, transparent 70%)",
+          filter: "blur(60px)", pointerEvents: "none", opacity: 0.6
+        }} />
+        <div className="orb-drift" style={{
+          position: "absolute", bottom: "15%", right: "10%",
+          width: 400, height: 400, borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%)",
+          filter: "blur(60px)", pointerEvents: "none", opacity: 0.5,
+          animationDelay: "-6s"
+        }} />
+        <div className="orb-drift" style={{
+          position: "absolute", top: "50%", left: "60%",
+          width: 300, height: 300, borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%)",
+          filter: "blur(50px)", pointerEvents: "none", opacity: 0.4,
+          animationDelay: "-12s"
+        }} />
+
+        <FadeIn>
+          <div style={{ background: C.accent + "18", border: `1px solid ${C.accent}30`, borderRadius: 24, padding: "8px 22px", marginBottom: 32, display: "inline-block" }}>
+            <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: C.accent, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              ⚡ Construction Progress Automation
+            </span>
+          </div>
+        </FadeIn>
+
+        {/* Word-by-word headline reveal */}
+        <FadeIn delay={0.1}>
+          <h1 style={{
+            fontFamily: FONT_HEADING, fontSize: 72, fontWeight: 900,
+            color: "#fff", margin: "0 0 24px", lineHeight: 1.02,
+            letterSpacing: "-0.02em", maxWidth: 800
+          }}>
+            {"Track Every Day.".split(" ").map((word, i) => (
+              <span key={i} className="word-reveal" style={{ marginRight: "0.3em" }}>
+                <span style={{ animationDelay: `${0.5 + i * 0.08}s` }}>{word}</span>
+              </span>
+            ))}
+            <br />
+            {"On Every Site.".split(" ").map((word, i) => (
+              <span key={`b${i}`} className="word-reveal" style={{ marginRight: "0.3em" }}>
+                <span style={{
+                  animationDelay: `${0.8 + i * 0.08}s`,
+                  background: "linear-gradient(135deg, #F97316, #FB923C, #F59E0B)",
+                  WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+                  backgroundClip: "text"
+                }}>{word}</span>
+              </span>
+            ))}
+          </h1>
+        </FadeIn>
+
+        <FadeIn delay={0.2}>
+          <p style={{ fontFamily: FONT, fontSize: 19, color: "#94A3B8", maxWidth: 580, margin: "0 0 44px", lineHeight: 1.7 }}>
+            Submit Daily Progress Reports, track costs, manage materials, and monitor project health — all in one platform built for construction teams.
+          </p>
+        </FadeIn>
+
+        <FadeIn delay={0.3}>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}>
+            <button onClick={onLogin} className="landing-cta" style={{
+              fontFamily: FONT, fontSize: 15, fontWeight: 700, color: "#fff",
+              background: `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`,
+              border: "none", borderRadius: 12, padding: "16px 36px",
+              cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8,
+              boxShadow: "0 4px 20px rgba(249,115,22,0.3)", transition: "all 0.25s"
+            }}>
+              Start Managing Projects <ChevronRight size={18} />
+            </button>
+            <button onClick={onLogin} style={{
+              fontFamily: FONT, fontSize: 15, fontWeight: 600,
+              color: "#94A3B8", background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12,
+              padding: "16px 32px", cursor: "pointer", transition: "all 0.2s"
+            }}
+              onMouseEnter={e => { e.target.style.background = "rgba(255,255,255,0.1)"; e.target.style.color = "#fff" }}
+              onMouseLeave={e => { e.target.style.background = "rgba(255,255,255,0.05)"; e.target.style.color = "#94A3B8" }}
+            >Sign In</button>
+          </div>
+        </FadeIn>
+
+        {/* Hero feature pills */}
+        <FadeIn delay={0.45} style={{ marginTop: 64 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+            {[
+              [FileText, "Daily Progress Reports"],
+              [BarChart2, "Real-Time Analytics"],
+              [Package, "Inventory Tracking"],
+              [Users, "Team Management"],
+            ].map(([Icon, label]) => (
+              <div key={label} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 30, padding: "10px 20px",
+              }}>
+                <Icon size={14} color={C.accent} />
+                <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: "#CBD5E1" }}>{label}</span>
+              </div>
+            ))}
+          </div>
+        </FadeIn>
+
+        {/* Scroll indicator */}
+        <div style={{
+          position: "absolute", bottom: 32, left: "50%", transform: "translateX(-50%)",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 8, animation: "heroFloat 2.5s ease-in-out infinite"
+        }}>
+          <span style={{ fontFamily: FONT, fontSize: 11, color: "#475569", letterSpacing: "0.1em", textTransform: "uppercase" }}>Scroll to explore</span>
+          <ChevronDown size={16} color="#475569" />
+        </div>
+      </section>
+
+      {/* ── 3. SOCIAL PROOF BAR ──────────────────────────────────────────── */}
+      <section style={{ padding: "48px 24px", borderTop: "1px solid rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,255,255,0.02)" }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 48 }}>
+          {stats.map((s, i) => (
+            <FadeIn key={s.label} delay={i * 0.1}>
+              <div style={{ textAlign: "center", minWidth: 140 }}>
+                <p style={{ fontFamily: FONT_HEADING, fontSize: 36, fontWeight: 900, color: C.accent, margin: "0 0 4px" }}>{s.value}</p>
+                <p style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: "#64748B", margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 4. PAIN POINTS ───────────────────────────────────────────────── */}
+      <Section bg="#0A1628">
+        <div style={{ textAlign: "center", marginBottom: 64 }}>
+          <FadeIn>
+            <SectionTag text="The Problem" />
+            <SectionTitle light>Why Construction Teams <span style={{ color: C.accent }}>Struggle</span></SectionTitle>
+            <SectionSub light>Every site faces the same three challenges. BuildTrack was built to solve all of them.</SectionSub>
+          </FadeIn>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 28 }}>
+          {painPoints.map((p, i) => {
+            const PIcon = p.icon
+            return (
+            <FadeIn key={p.title} delay={i * 0.15}>
+              <div className="landing-card" style={{
+                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 20, padding: 36,
+                backdropFilter: "blur(8px)", transition: "all 0.35s ease", cursor: "default"
+              }}>
+                <div style={{ background: "rgba(249,115,22,0.1)", borderRadius: 14, padding: 14, display: "inline-flex", marginBottom: 20 }}>
+                  <PIcon size={24} color={C.accent} />
+                </div>
+                <h3 style={{ fontFamily: FONT_HEADING, fontSize: 22, fontWeight: 800, color: "#fff", margin: "0 0 12px" }}>{p.title}</h3>
+                <p style={{ fontFamily: FONT, fontSize: 14, color: "#EF4444", margin: "0 0 16px", lineHeight: 1.6, fontWeight: 500 }}>
+                  ✕ {p.problem}
+                </p>
+                <p style={{ fontFamily: FONT, fontSize: 14, color: C.success, margin: 0, lineHeight: 1.6, fontWeight: 500 }}>
+                  ✓ {p.solution}
+                </p>
+              </div>
+            </FadeIn>
+            )
+          })}
+        </div>
+      </Section>
+
+      {/* ── 5. FEATURE SHOWCASE (alternating layout) ─────────────────────── */}
+      <Section bg={C.sidebar} id="features">
+        <div style={{ textAlign: "center", marginBottom: 72 }}>
+          <FadeIn>
+            <SectionTag text="Core Features" />
+            <SectionTitle light>Everything You Need to <span style={{ color: C.accent }}>Run a Site</span></SectionTitle>
+            <SectionSub light>From daily reports to financial analytics — every module designed for real-world construction workflows.</SectionSub>
+          </FadeIn>
+        </div>
+        {features.map((f, i) => {
+          const FIcon = f.icon
+          return (
+          <FadeIn key={f.title} delay={0.1}>
+            <div style={{
+              display: "flex", gap: 60, alignItems: "center",
+              marginBottom: i < features.length - 1 ? 80 : 0,
+              flexDirection: i % 2 === 1 ? "row-reverse" : "row",
+              flexWrap: "wrap"
+            }}>
+              {/* Text side */}
+              <div style={{ flex: 1, minWidth: 300 }}>
+                <div style={{ display: "inline-flex", background: C.accent + "18", borderRadius: 12, padding: 12, marginBottom: 20 }}>
+                  <FIcon size={24} color={C.accent} />
+                </div>
+                <h3 style={{ fontFamily: FONT_HEADING, fontSize: 32, fontWeight: 800, color: "#fff", margin: "0 0 16px", lineHeight: 1.15 }}>{f.title}</h3>
+                <p style={{ fontFamily: FONT, fontSize: 16, color: "#94A3B8", margin: "0 0 28px", lineHeight: 1.7 }}>{f.desc}</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  {f.highlights.map(h => (
+                    <div key={h} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <CheckCircle size={14} color={C.success} />
+                      <span style={{ fontFamily: FONT, fontSize: 13, fontWeight: 500, color: "#CBD5E1" }}>{h}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Visual side — glass card mockup */}
+              <div style={{ flex: 1, minWidth: 300, display: "flex", justifyContent: "center" }}>
+                <div className="feature-card" style={{
+                  width: "100%", maxWidth: 440,
+                  background: "linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
+                  border: "1px solid rgba(255,255,255,0.08)", borderRadius: 24,
+                  padding: 32, backdropFilter: "blur(12px)", transition: "all 0.35s"
+                }}>
+                  {/* Mini mockup UI */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#EF4444" }} />
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#F59E0B" }} />
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#10B981" }} />
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 20, marginBottom: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                      <span style={{ fontFamily: FONT_HEADING, fontSize: 16, fontWeight: 700, color: "#E2E8F0" }}>{f.title}</span>
+                      <FIcon size={16} color={C.accent} />
+                    </div>
+                    {[1,2,3].map(j => (
+                      <div key={j} style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: j < 3 ? 10 : 0 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: j === 1 ? C.accent : j === 2 ? C.success : C.info }} />
+                        <div style={{ flex: 1, height: 8, background: "rgba(255,255,255,0.06)", borderRadius: 4 }}>
+                          <div style={{ width: `${90 - j * 20}%`, height: "100%", background: `linear-gradient(90deg, ${C.accent}60, ${C.accent}20)`, borderRadius: 4 }} />
+                        </div>
+                        <span style={{ fontFamily: FONT, fontSize: 11, color: "#64748B", fontWeight: 600, minWidth: 36, textAlign: "right" }}>{`${90 - j * 20}%`}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    {[
+                      { l: i === 0 ? "Today" : i === 1 ? "Budget" : "In Stock", v: i === 0 ? "12 DPRs" : i === 1 ? "₹2.4Cr" : "847 units" },
+                      { l: i === 0 ? "Photos" : i === 1 ? "Spent" : "Low Stock", v: i === 0 ? "36 new" : i === 1 ? "₹1.8Cr" : "3 items" },
+                    ].map(kpi => (
+                      <div key={kpi.l} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px" }}>
+                        <p style={{ fontFamily: FONT, fontSize: 10, color: "#64748B", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{kpi.l}</p>
+                        <p style={{ fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 800, color: "#E2E8F0", margin: 0 }}>{kpi.v}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </FadeIn>
+          )
+        })}
+      </Section>
+
+      {/* ── 6. HOW IT WORKS ──────────────────────────────────────────────── */}
+      <Section bg="#0A1628" id="how-it-works">
+        <div style={{ textAlign: "center", marginBottom: 64 }}>
+          <FadeIn>
+            <SectionTag text="How It Works" />
+            <SectionTitle light>Up and Running in <span style={{ color: C.accent }}>3 Steps</span></SectionTitle>
+            <SectionSub light>No complex setup. No training manuals. Just create, submit, and review.</SectionSub>
+          </FadeIn>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 32, position: "relative" }}>
+          {steps.map((s, i) => (
+            <FadeIn key={s.num} delay={i * 0.15}>
+              <div style={{
+                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 24, padding: "44px 36px", textAlign: "center",
+                position: "relative", overflow: "hidden"
+              }}>
+                <div style={{
+                  position: "absolute", top: -20, right: -20,
+                  width: 100, height: 100, borderRadius: "50%",
+                  background: `radial-gradient(circle, ${C.accent}10 0%, transparent 70%)`,
+                  pointerEvents: "none"
+                }} />
+                <div className="step-num" style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 56, height: 56, borderRadius: 16, marginBottom: 24,
+                  fontFamily: FONT_HEADING, fontSize: 22, fontWeight: 900, color: "#fff"
+                }}>{s.num}</div>
+                <h3 style={{ fontFamily: FONT_HEADING, fontSize: 24, fontWeight: 800, color: "#fff", margin: "0 0 12px" }}>{s.title}</h3>
+                <p style={{ fontFamily: FONT, fontSize: 14, color: "#94A3B8", margin: 0, lineHeight: 1.7 }}>{s.desc}</p>
+                {i < steps.length - 1 && (
+                  <div style={{
+                    position: "absolute", top: "50%", right: -16, transform: "translateY(-50%)",
+                    display: "none" /* visible on desktop via media query future enhancement */
+                  }}>
+                    <ChevronRight size={24} color={C.accent} />
+                  </div>
+                )}
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </Section>
+
+      {/* ── 7. ROLE CARDS ────────────────────────────────────────────────── */}
+      <Section bg={C.sidebar} id="roles">
+        <div style={{ textAlign: "center", marginBottom: 64 }}>
+          <FadeIn>
+            <SectionTag text="Built For Everyone" />
+            <SectionTitle light>One Platform, <span style={{ color: C.accent }}>Every Role</span></SectionTitle>
+            <SectionSub light>Whether you are on scaffolding or in the boardroom, BuildTrack shows you exactly what you need.</SectionSub>
+          </FadeIn>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 24 }}>
+          {roles.map((r, i) => {
+            const RIcon = r.icon
+            return (
+            <FadeIn key={r.title} delay={i * 0.1}>
+              <div className="role-card" style={{
+                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 20, padding: "36px 28px", textAlign: "center",
+                transition: "all 0.3s ease", cursor: "default",
+                borderTop: `3px solid ${r.color}`
+              }}>
+                <div style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 56, height: 56, borderRadius: 16,
+                  background: r.color + "18", marginBottom: 20
+                }}>
+                  <RIcon size={26} color={r.color} />
+                </div>
+                <h3 style={{ fontFamily: FONT_HEADING, fontSize: 20, fontWeight: 800, color: "#fff", margin: "0 0 10px" }}>{r.title}</h3>
+                <p style={{ fontFamily: FONT, fontSize: 13, color: "#94A3B8", margin: 0, lineHeight: 1.65 }}>{r.desc}</p>
+              </div>
+            </FadeIn>
+            )
+          })}
+        </div>
+      </Section>
+
+      {/* ── 8. FINAL CTA ─────────────────────────────────────────────────── */}
+      <section style={{
+        padding: "100px 24px", textAlign: "center", position: "relative", overflow: "hidden",
+        background: "linear-gradient(180deg, #0A1628 0%, #0D1B2A 100%)"
+      }}>
+        {/* Gradient orb */}
+        <div style={{
+          position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          width: 600, height: 600, borderRadius: "50%",
+          background: `radial-gradient(circle, ${C.accent}12 0%, transparent 65%)`,
+          filter: "blur(60px)", pointerEvents: "none"
+        }} />
+        <FadeIn>
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <SectionTag text="Get Started Today" />
+            <h2 style={{
+              fontFamily: FONT_HEADING, fontSize: 48, fontWeight: 900, color: "#fff",
+              margin: "0 0 20px", lineHeight: 1.1, letterSpacing: "-0.01em"
+            }}>
+              Ready to Digitise<br /><span style={{ color: C.accent }}>Your Sites?</span>
+            </h2>
+            <p style={{ fontFamily: FONT, fontSize: 17, color: "#94A3B8", margin: "0 auto 40px", maxWidth: 500, lineHeight: 1.7 }}>
+              Join construction teams already using BuildTrack to eliminate paperwork, prevent cost overruns, and keep every project on track.
+            </p>
+            <button onClick={onLogin} className="landing-cta" style={{
+              fontFamily: FONT, fontSize: 16, fontWeight: 700, color: "#fff",
+              background: `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`,
+              border: "none", borderRadius: 14, padding: "18px 48px",
+              cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 10,
+              boxShadow: "0 4px 30px rgba(249,115,22,0.35)", transition: "all 0.25s"
+            }}>
+              Start for Free <ChevronRight size={20} />
+            </button>
+            <p style={{ fontFamily: FONT, fontSize: 12, color: "#475569", marginTop: 16 }}>No credit card required · Set up in under 5 minutes</p>
+          </div>
+        </FadeIn>
+      </section>
+
+      {/* ── FOOTER ─────────────────────────────────────────────────────────── */}
+      <footer style={{
+        padding: "48px 24px 36px", borderTop: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(0,0,0,0.15)"
+      }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 40, marginBottom: 40 }}>
+            {/* Brand */}
+            <div style={{ maxWidth: 280 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{ background: C.accent, borderRadius: 10, padding: 8, display: "flex" }}><HardHat size={18} color="#fff" /></div>
+                <span style={{ fontFamily: FONT_HEADING, fontSize: 20, fontWeight: 800, color: "#fff", letterSpacing: "0.04em" }}>BuildTrack</span>
+              </div>
+              <p style={{ fontFamily: FONT, fontSize: 13, color: "#64748B", margin: 0, lineHeight: 1.65 }}>
+                Construction progress management platform. Digitise daily reports, track costs, manage materials.
+              </p>
+            </div>
+            {/* Links */}
+            <div style={{ display: "flex", gap: 64, flexWrap: "wrap" }}>
+              {[
+                { title: "Product", links: ["Features", "Analytics", "Reports", "Materials"] },
+                { title: "Company", links: ["About", "GitHub", "Contact", "Blog"] },
+              ].map(col => (
+                <div key={col.title}>
+                  <p style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: "#94A3B8", margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.1em" }}>{col.title}</p>
+                  {col.links.map(l => (
+                    <p key={l} style={{ margin: "0 0 8px" }}>
+                      <a href="#" style={{ fontFamily: FONT, fontSize: 13, color: "#64748B", textDecoration: "none", transition: "color 0.2s" }}
+                        onMouseEnter={e => e.target.style.color = "#fff"}
+                        onMouseLeave={e => e.target.style.color = "#64748B"}
+                      >{l}</a>
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Bottom bar */}
+          <div style={{
+            borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 24,
+            display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12
+          }}>
+            <p style={{ fontFamily: FONT, fontSize: 12, color: "#475569", margin: 0 }}>© 2026 BuildTrack — Built by Tarun Rawat</p>
+            <p style={{ fontFamily: FONT, fontSize: 12, color: "#475569", margin: 0 }}>React · Vite · Supabase</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE — Authentication
@@ -1065,10 +1964,9 @@ const Projects = ({ user, projects, setProjects, notifications, onMarkAllRead, o
               const pctVal = pct(p)
               return (
                 <div key={p.id}
-                  style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)", cursor: "pointer", transition: "box-shadow 0.18s, transform 0.18s" }}
-                  onClick={() => onCardClick && onCardClick(p.id)}
-                  onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 24px rgba(249,115,22,0.13)"; e.currentTarget.style.transform = "translateY(-2px)" }}
-                  onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.04)";        e.currentTarget.style.transform = "translateY(0)" }}>
+                  className="card-hover"
+                  style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)", cursor: "pointer" }}
+                  onClick={() => onCardClick && onCardClick(p.id)}>
                   <div style={{ padding: "18px 20px 14px", borderBottom: `1px solid ${C.border}` }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                       <div style={{ flex: 1, marginRight: 12 }}>
@@ -1109,7 +2007,7 @@ const Projects = ({ user, projects, setProjects, notifications, onMarkAllRead, o
         <Modal title={editId ? "Edit Project" : "New Project"} onClose={() => setShowModal(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Input label="Project Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Riverside Tower Block A" required />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
               <Input label="Start Date"      type="date"   value={form.start_date}      onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
               <Input label="Target End Date" type="date"   value={form.target_end_date} onChange={e => setForm(f => ({ ...f, target_end_date: e.target.value }))} />
               <Input label="Total Budget (₹)" type="number" value={form.total_cost}     onChange={e => setForm(f => ({ ...f, total_cost: e.target.value }))}    placeholder="0" />
@@ -1272,7 +2170,7 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
       <TopBar title="Submit Daily Progress Report" notifications={notifications} onMarkAllRead={onMarkAllRead} />
       <div style={{ background: C.card, borderRadius: 16, padding: 28, marginTop: 24, border: `1px solid ${C.border}` }}>
         {error && <p style={{ fontFamily: FONT, fontSize: 13, color: C.danger, background: "#FEE2E2", padding: "10px 14px", borderRadius: 8, marginBottom: 20 }}>{error}</p>}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18, marginBottom: 18 }}>
           <Select label="Project" value={form.project_id} onChange={e => f("project_id", e.target.value)} required options={[{ value: "", label: "Select Project" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
           <Input  label="Date"    type="date" value={form.report_date} onChange={e => f("report_date", e.target.value)} required />
           <Select label="Weather" value={form.weather} onChange={e => f("weather", e.target.value)} options={WEATHER_OPTIONS.map(w => ({ value: w, label: w || "Select Weather" }))} />
@@ -1280,7 +2178,7 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
           <Select label="Floor"   value={form.floor} onChange={e => f("floor", e.target.value)} required options={FLOORS.map(fl => ({ value: fl, label: fl || "Select Floor" }))} />
           <Select label="Stage"   value={form.stage} onChange={e => f("stage", e.target.value)} required options={[{ value: "", label: "Select Stage" }, ...stages.map(s => ({ value: s, label: s }))]} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18, marginBottom: 18 }}>
           <Input label="Work Completed"  value={form.work_completed}  onChange={e => f("work_completed",  e.target.value)} placeholder="Describe work done today" />
           <Input label="Machinery Used"  value={form.machinery_used}  onChange={e => f("machinery_used",  e.target.value)} placeholder="e.g. Excavator, Transit Mixer" />
           <Input label="Materials Used"  value={form.materials_used}  onChange={e => f("materials_used",  e.target.value)} placeholder="e.g. 120 bags cement, 2T TMT" />
@@ -1293,7 +2191,7 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
         {/* Cost breakdown */}
         <div style={{ background: "#F8FAFC", borderRadius: 12, padding: 20, border: `1px solid ${C.border}`, marginBottom: 24 }}>
           <h3 style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.charcoal, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Cost Breakdown</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 14 }}>
             {[["labor_cost","Labor"],["material_cost","Material"],["equipment_cost","Equipment"],["subcontractor_cost","Subcontractor"],["other_cost","Other"]].map(([k, label]) => (
               <Input key={k} label={label} type="number" value={form[k]} onChange={e => f(k, e.target.value)} placeholder="0" />
             ))}
@@ -1340,9 +2238,20 @@ const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead })
           )}
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        {/* ── Sticky submit bar ─────────────────────────────────────── */}
+        <div style={{
+          position: "sticky", bottom: 0, zIndex: 50,
+          background: C.card, borderTop: `1px solid ${C.border}`,
+          padding: "16px 0 env(safe-area-inset-bottom, 16px)",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          marginTop: 8
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, fontWeight: 600 }}>Total:</span>
+            <span style={{ fontFamily: FONT_HEADING, fontSize: 22, fontWeight: 800, color: C.accent }}>{fmt(liveTotal)}</span>
+          </div>
           <Btn onClick={handleSubmit} disabled={saving || photoUploading} size="lg" icon={CheckCircle}>
-            {photoUploading ? "Uploading photos..." : saving ? "Submitting..." : "Submit Report"}
+            {photoUploading ? "Uploading..." : saving ? "Submitting..." : "Submit Report"}
           </Btn>
         </div>
       </div>
@@ -1652,19 +2561,19 @@ const Reports = ({ user, userRole, projects, reports, notifications, onMarkAllRe
               </div>
               {filteredReports.length === 0 ? <Empty message="No reports found" /> : (
                 <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
+                  <table className="responsive-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
                     <thead><tr style={{ background: "#F8FAFC" }}>{["Date","Project","Stage","Floor","Weather","Manpower","Total Cost","Remarks"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
                     <tbody>
                       {filteredReports.map(r => (
                         <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                          <td style={{ padding: "10px 14px", color: C.text }}>{r.report_date}</td>
-                          <td style={{ padding: "10px 14px", color: C.text, fontWeight: 600 }}>{r.projects?.name || "—"}</td>
-                          <td style={{ padding: "10px 14px", color: C.text }}>{r.stage}</td>
-                          <td style={{ padding: "10px 14px", color: C.text }}>{r.floor}</td>
-                          <td style={{ padding: "10px 14px" }}><div style={{ display: "flex", alignItems: "center", gap: 4 }}><WeatherIcon w={r.weather} />{r.weather || "—"}</div></td>
-                          <td style={{ padding: "10px 14px", color: C.text, textAlign: "center" }}>{r.manpower_count}</td>
-                          <td style={{ padding: "10px 14px", fontWeight: 700, color: C.accent }}>{fmt(r.total_cost)}</td>
-                          <td style={{ padding: "10px 14px", color: C.textMuted, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.remarks || "—"}</td>
+                          <td data-label="Date" style={{ padding: "10px 14px", color: C.text }}>{r.report_date}</td>
+                          <td data-label="Project" style={{ padding: "10px 14px", color: C.text, fontWeight: 600 }}>{r.projects?.name || "—"}</td>
+                          <td data-label="Stage" style={{ padding: "10px 14px", color: C.text }}>{r.stage}</td>
+                          <td data-label="Floor" style={{ padding: "10px 14px", color: C.text }}>{r.floor}</td>
+                          <td data-label="Weather" style={{ padding: "10px 14px" }}><div style={{ display: "flex", alignItems: "center", gap: 4 }}><WeatherIcon w={r.weather} />{r.weather || "—"}</div></td>
+                          <td data-label="Manpower" style={{ padding: "10px 14px", color: C.text, textAlign: "center" }}>{r.manpower_count}</td>
+                          <td data-label="Total Cost" style={{ padding: "10px 14px", fontWeight: 700, color: C.accent }}>{fmt(r.total_cost)}</td>
+                          <td data-label="Remarks" style={{ padding: "10px 14px", color: C.textMuted, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.remarks || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1839,17 +2748,17 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
               )}
               {tab === "Usage Log" && (
                 usage.length === 0 ? <Empty message="No usage records yet" sub="Click Add Usage to log material consumption" /> : (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
+                  <table className="responsive-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
                     <thead><tr style={{ background: "#F8FAFC" }}>{["Date","Material","Project","Quantity","Notes"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
-                    <tbody>{usage.map(u => <tr key={u.id} style={{ borderBottom: `1px solid ${C.border}` }}><td style={{ padding: "10px 14px" }}>{u.usage_date}</td><td style={{ padding: "10px 14px", fontWeight: 600 }}>{u.materials?.name}</td><td style={{ padding: "10px 14px" }}>{u.projects?.name || "—"}</td><td style={{ padding: "10px 14px" }}>{u.quantity_used}</td><td style={{ padding: "10px 14px", color: C.textMuted }}>{u.notes || "—"}</td></tr>)}</tbody>
+                    <tbody>{usage.map(u => <tr key={u.id} style={{ borderBottom: `1px solid ${C.border}` }}><td data-label="Date" style={{ padding: "10px 14px" }}>{u.usage_date}</td><td data-label="Material" style={{ padding: "10px 14px", fontWeight: 600 }}>{u.materials?.name}</td><td data-label="Project" style={{ padding: "10px 14px" }}>{u.projects?.name || "—"}</td><td data-label="Quantity" style={{ padding: "10px 14px" }}>{u.quantity_used}</td><td data-label="Notes" style={{ padding: "10px 14px", color: C.textMuted }}>{u.notes || "—"}</td></tr>)}</tbody>
                   </table>
                 )
               )}
               {tab === "Purchases" && (
                 purchases.length === 0 ? <Empty message="No purchases recorded yet" sub="Click Add Purchase to record a procurement" /> : (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
+                  <table className="responsive-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
                     <thead><tr style={{ background: "#F8FAFC" }}>{["Date","Material","Qty","Unit Cost","Total","Supplier","Invoice"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>)}</tr></thead>
-                    <tbody>{purchases.map(p => <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}` }}><td style={{ padding: "10px 14px" }}>{p.purchase_date}</td><td style={{ padding: "10px 14px", fontWeight: 600 }}>{p.materials?.name}</td><td style={{ padding: "10px 14px" }}>{p.quantity_purchased}</td><td style={{ padding: "10px 14px" }}>₹{p.cost_per_unit}</td><td style={{ padding: "10px 14px", fontWeight: 700, color: C.success }}>{fmt(p.total_cost)}</td><td style={{ padding: "10px 14px", color: C.textMuted }}>{p.supplier_name || "—"}</td><td style={{ padding: "10px 14px", color: C.textMuted }}>{p.invoice_number || "—"}</td></tr>)}</tbody>
+                    <tbody>{purchases.map(p => <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}` }}><td data-label="Date" style={{ padding: "10px 14px" }}>{p.purchase_date}</td><td data-label="Material" style={{ padding: "10px 14px", fontWeight: 600 }}>{p.materials?.name}</td><td data-label="Qty" style={{ padding: "10px 14px" }}>{p.quantity_purchased}</td><td data-label="Unit Cost" style={{ padding: "10px 14px" }}>₹{p.cost_per_unit}</td><td data-label="Total" style={{ padding: "10px 14px", fontWeight: 700, color: C.success }}>{fmt(p.total_cost)}</td><td data-label="Supplier" style={{ padding: "10px 14px", color: C.textMuted }}>{p.supplier_name || "—"}</td><td data-label="Invoice" style={{ padding: "10px 14px", color: C.textMuted }}>{p.invoice_number || "—"}</td></tr>)}</tbody>
                   </table>
                 )
               )}
@@ -2788,6 +3697,7 @@ const AIAssistant = ({ projects, reports, materials, notifications, onMarkAllRea
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const isMobile = useMediaQuery("(max-width: 1024px)")
   const [screen,             setScreen]             = useState("landing")
   const [page,               setPage]               = useState("dashboard")
   const [user,               setUser]               = useState(null)
@@ -2798,6 +3708,7 @@ export default function App() {
   const [notifications,      setNotifications]      = useState([])
   const [loading,            setLoading]            = useState(true)
   const [activeProjectId,    setActiveProjectId]    = useState(null)
+  const [scrollProgress,     setScrollProgress]     = useState(0)
 
   // Load Google Fonts once on mount
   useEffect(() => {
@@ -2919,12 +3830,42 @@ export default function App() {
                       />,
   }
 
+
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: FONT }}>
-      <Sidebar page={page} setPage={setPage} user={user} userRole={userRole} onSignOut={handleSignOut} />
-      <main style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
-        {PAGES[page] || PAGES.dashboard}
+    <>
+      <style>{`
+        @media (max-width: 1024px) {
+          .modal-overlay { align-items: flex-end !important; padding: 0 !important; }
+          .modal-content { border-radius: 20px 20px 0 0 !important; margin-top: auto !important; max-height: 85vh !important; }
+          .responsive-table { border: 0 !important; display: block; }
+          .responsive-table thead { display: none; }
+          .responsive-table tbody { display: block; width: 100%; }
+          .responsive-table tr { display: block; margin-bottom: 20px; border: 1px solid ${C.border}; border-radius: 12px; padding: 12px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+          .responsive-table td { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid ${C.border}; padding: 10px 4px; text-align: right; }
+          .responsive-table td:last-child { border-bottom: none; }
+          .responsive-table td::before { content: attr(data-label); font-weight: 600; color: ${C.textMuted}; text-transform: uppercase; font-size: 11px; margin-right: 16px; text-align: left; }
+          .chart-col { height: 250px !important; }
+        }
+      `}</style>
+      <div className="scroll-progress" style={{ width: `${scrollProgress}%` }} />
+      <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: FONT }}>
+        {!isMobile && <Sidebar page={page} setPage={setPage} user={user} userRole={userRole} onSignOut={handleSignOut} />}
+      <main
+        onScroll={e => {
+          const main = e.currentTarget
+          const scroll = main.scrollTop
+          const max = main.scrollHeight - main.clientHeight
+          setScrollProgress(max > 0 ? (scroll / max) * 100 : 0)
+        }}
+        style={{ flex: 1, overflowY: "auto", minWidth: 0, paddingBottom: isMobile ? 65 : 0 }}
+      >
+        <div key={page} className="page-fade-in">
+          {PAGES[page] || PAGES.dashboard}
+        </div>
       </main>
-    </div>
+      {isMobile && <MobileNav page={page} setPage={setPage} user={user} userRole={userRole} onSignOut={handleSignOut} />}
+      </div>
+    </>
   )
 }
