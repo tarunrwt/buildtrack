@@ -2705,6 +2705,12 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
     setPurchaseForm({ material_id: "", quantity_purchased: "", cost_per_unit: "", supplier_name: "", purchase_date: new Date().toISOString().split("T")[0], invoice_number: "" })
   }
 
+  const handleDeleteMaterial = async (id) => {
+    if (!confirm("Delete this material? This cannot be undone.")) return
+    const { error } = await supabase.from("materials").delete().eq("id", id)
+    if (!error) setMaterials(ms => ms.filter(m => m.id !== id))
+  }
+
   const ctxButton = { "Materials": { label: "Add Material", action: () => setShowModal(true) }, "Usage Log": { label: "Add Usage", action: () => setShowModal(true) }, "Purchases": { label: "Add Purchase", action: () => setShowModal(true) }, "Analytics": null }[tab]
   const filtered   = materials.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.category.toLowerCase().includes(search.toLowerCase()))
   const totalValue = materials.reduce((s, m) => s + ((m.current_stock || 0) * (m.cost_per_unit || 0)), 0)
@@ -2715,8 +2721,19 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
 
   return (
     <div style={{ padding: 28 }}>
-      <TopBar title="Materials & Inventory" subtitle={`${materials.length} materials tracked`} notifications={notifications} onMarkAllRead={onMarkAllRead}
+      <TopBar title="Materials & Inventory" subtitle={`${materials.length} item${materials.length !== 1 ? "s" : ""} in inventory`} notifications={notifications} onMarkAllRead={onMarkAllRead}
         actions={ctxButton ? <Btn onClick={ctxButton.action} icon={Plus}>{ctxButton.label}</Btn> : null} />
+
+      {/* Guard: No projects */}
+      {(projects || []).length === 0 && (
+        <div style={{ marginTop: 32, background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: 24, display: "flex", alignItems: "center", gap: 16 }}>
+          <AlertTriangle size={22} color={C.warning} style={{ flexShrink: 0 }} />
+          <div>
+            <p style={{ fontFamily: FONT_HEADING, fontSize: 15, fontWeight: 700, color: C.text, margin: 0 }}>No active projects</p>
+            <p style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, margin: "4px 0 0" }}>Material usage tracking requires at least one project. Your inventory catalog is shown below but usage cannot be logged until a project is created.</p>
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", margin: "24px 0" }}>
         <KPICard label="Total Items"      value={materials.length} sub="in inventory"    icon={Package}       accent={C.info}   />
         <KPICard label="Inventory Value"  value={fmt(totalValue)}  sub="current stock"   icon={DollarSign}    accent={C.success}/>
@@ -2738,7 +2755,15 @@ const Materials = ({ user, projects, notifications, onMarkAllRead }) => {
                           <div key={m.id} style={{ background: "#F8FAFC", borderRadius: 12, padding: "16px 18px", border: `1px solid ${isLow ? C.danger + "40" : C.border}` }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                               <div><p style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>{m.name}</p><StatusBadge status={m.category} /></div>
-                              {isLow && <Badge label="Low Stock" color={C.danger} bg="#FEE2E2" />}
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                {isLow && <Badge label="Low Stock" color={C.danger} bg="#FEE2E2" />}
+                                <button onClick={() => handleDeleteMaterial(m.id)} title="Delete material"
+                                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, borderRadius: 6, color: C.danger, display: "flex", alignItems: "center" }}
+                                  onMouseEnter={e => e.currentTarget.style.background = "#FEE2E2"}
+                                  onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
                               <div><p style={{ fontFamily: FONT, fontSize: 11, color: C.textMuted, margin: 0 }}>Current Stock</p><p style={{ fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 700, color: isLow ? C.danger : C.text, margin: 0 }}>{(m.current_stock || 0).toLocaleString()} {m.unit}</p></div>
