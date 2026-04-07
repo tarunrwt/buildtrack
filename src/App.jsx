@@ -3413,6 +3413,17 @@ const ManageWorkersTab = ({ user, projects }) => {
     daily_wage_rate: "380", aadhaar_last4: "", joined_date: new Date().toISOString().split("T")[0],
   })
 
+  // Edit state
+  const [editWorker, setEditWorker] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [editPhotoFile, setEditPhotoFile] = useState(null)
+  const [editPhotoPreview, setEditPhotoPreview] = useState(null)
+  const [editSaving, setEditSaving] = useState(false)
+
+  // Delete state
+  const [deleteWorker, setDeleteWorker] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+
   const f = (key, val) => setForm(prev => {
     const next = { ...prev, [key]: val }
     if (key === "category") {
@@ -3472,6 +3483,65 @@ const ManageWorkersTab = ({ user, projects }) => {
 
   const toggleActive = async (w) => {
     await supabase.from("labourers").update({ is_active: !w.is_active }).eq("id", w.id)
+    loadWorkers()
+  }
+
+  const openEdit = (w) => {
+    setEditWorker(w)
+    setEditForm({
+      name: w.name, phone: w.phone || "", category: w.category,
+      trade: w.trade || "", daily_wage_rate: String(w.daily_wage_rate),
+      aadhaar_last4: w.aadhaar_last4 || "", joined_date: w.joined_date || "",
+    })
+    setEditPhotoPreview(w.photo_url || null)
+    setEditPhotoFile(null)
+  }
+
+  const ef = (key, val) => setEditForm(prev => {
+    const next = { ...prev, [key]: val }
+    if (key === "category") {
+      const cat = CATEGORY_OPTIONS.find(c => c.value === val)
+      next.daily_wage_rate = String(cat?.defaultWage || "")
+      next.trade = ""
+    }
+    return next
+  })
+
+  const handleEditSave = async () => {
+    setError("")
+    if (!editForm.name.trim()) return setError("Worker name is required.")
+    if (editForm.aadhaar_last4 && editForm.aadhaar_last4.length !== 4) return setError("Aadhaar must be exactly 4 digits.")
+    setEditSaving(true)
+
+    let photo_url = editWorker.photo_url
+    if (editPhotoFile) {
+      const ext = editPhotoFile.name.split(".").pop()
+      const path = `${projectFilter}/${Date.now()}_${editForm.name.replace(/\s+/g, "_")}.${ext}`
+      const { error: upErr } = await supabase.storage.from("labourer-photos").upload(path, editPhotoFile)
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from("labourer-photos").getPublicUrl(path)
+        photo_url = urlData?.publicUrl
+      }
+    }
+
+    const { error: e } = await supabase.from("labourers").update({
+      name: editForm.name.trim(), phone: editForm.phone || null,
+      category: editForm.category, trade: editForm.trade || null,
+      daily_wage_rate: parseFloat(editForm.daily_wage_rate),
+      aadhaar_last4: editForm.aadhaar_last4 || null, photo_url,
+      joined_date: editForm.joined_date, updated_at: new Date().toISOString(),
+    }).eq("id", editWorker.id)
+
+    if (e) { setError(e.message); setEditSaving(false); return }
+    setEditSaving(false); setEditWorker(null); setEditPhotoFile(null); setEditPhotoPreview(null)
+    loadWorkers()
+  }
+
+  const handleDelete = async () => {
+    if (!deleteWorker) return
+    setDeleting(true)
+    await supabase.from("labourers").delete().eq("id", deleteWorker.id)
+    setDeleting(false); setDeleteWorker(null)
     loadWorkers()
   }
 
@@ -3535,7 +3605,7 @@ const ManageWorkersTab = ({ user, projects }) => {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
               <thead><tr style={{ background: "#F8FAFC" }}>
-                {["","Name","Category","Trade","Wage/Day","Aadhaar","Joined","Status",""].map(h => (
+                {["","Name","Category","Trade","Wage/Day","Aadhaar","Joined","Status","Actions"].map(h => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>
                 ))}
               </tr></thead>
@@ -3556,9 +3626,13 @@ const ManageWorkersTab = ({ user, projects }) => {
                     <Badge label={w.is_active ? "Active" : "Inactive"} bg={w.is_active ? "#D1FAE5" : "#F1F5F9"} color={w.is_active ? C.success : C.textMuted} />
                   </td>
                   <td style={{ padding: "10px 14px" }}>
-                    <button onClick={() => toggleActive(w)} style={{ background: "none", border: "none", color: C.info, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
-                      {w.is_active ? "Deactivate" : "Activate"}
-                    </button>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button onClick={() => openEdit(w)} style={{ background: "none", border: "none", color: C.info, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>Edit</button>
+                      <button onClick={() => toggleActive(w)} style={{ background: "none", border: "none", color: C.warning, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>
+                        {w.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                      <button onClick={() => setDeleteWorker(w)} style={{ background: "none", border: "none", color: C.danger, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>Delete</button>
+                    </div>
                   </td>
                 </tr>
               ))}</tbody>
@@ -3566,6 +3640,57 @@ const ManageWorkersTab = ({ user, projects }) => {
           </div>
         )}
       </div>
+
+      {/* Edit Worker Modal */}
+      {editWorker && (
+        <Modal title="Edit Worker" onClose={() => setEditWorker(null)} width={620}>
+          {error && <p style={{ fontFamily: FONT, fontSize: 13, color: C.danger, background: "#FEE2E2", padding: "10px 14px", borderRadius: 8, marginBottom: 16 }}>{error}</p>}
+          <div style={{ display: "flex", gap: 24, marginBottom: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 100, height: 100, borderRadius: 12, background: "#F1F5F9", border: `2px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: "pointer" }}
+                onClick={() => document.getElementById("edit-photo-input").click()}>
+                {editPhotoPreview ? <img src={editPhotoPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <Camera size={28} color={C.textMuted} />}
+              </div>
+              <input id="edit-photo-input" type="file" accept="image/*" onChange={e => { const file = e.target.files?.[0]; if (file) { setEditPhotoFile(file); setEditPhotoPreview(URL.createObjectURL(file)) } }} style={{ display: "none" }} />
+              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT }}>Change Photo</span>
+            </div>
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Input label="Full Name" required value={editForm.name} onChange={e => ef("name", e.target.value)} />
+              <Input label="Phone" value={editForm.phone} onChange={e => ef("phone", e.target.value)} />
+              <Select label="Category" required value={editForm.category} onChange={e => ef("category", e.target.value)}
+                options={CATEGORY_OPTIONS.map(c => ({ value: c.value, label: c.label }))} />
+              <Select label="Trade" value={editForm.trade} onChange={e => ef("trade", e.target.value)}
+                options={[{ value: "", label: "Select Trade" }, ...(TRADE_BY_CATEGORY[editForm.category] || []).map(t => ({ value: t, label: t }))]} />
+              <Input label="Daily Wage (₹)" type="number" required value={editForm.daily_wage_rate} onChange={e => ef("daily_wage_rate", e.target.value)} />
+              <Input label="Aadhaar Last 4" value={editForm.aadhaar_last4} onChange={e => ef("aadhaar_last4", e.target.value)} />
+              <Input label="Joined Date" type="date" value={editForm.joined_date} onChange={e => ef("joined_date", e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <Btn variant="secondary" onClick={() => setEditWorker(null)}>Cancel</Btn>
+            <Btn onClick={handleEditSave} disabled={editSaving} icon={CheckCircle}>{editSaving ? "Saving..." : "Save Changes"}</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteWorker && (
+        <Modal title="Delete Worker" onClose={() => setDeleteWorker(null)} width={440}>
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontFamily: FONT, fontSize: 14, color: C.text, margin: "0 0 12px" }}>
+              Are you sure you want to permanently delete <strong>{deleteWorker.name}</strong>?
+            </p>
+            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: 12, fontSize: 13, fontFamily: FONT, color: C.danger }}>
+              ⚠ This will also remove all attendance records for this worker. This action cannot be undone.
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <Btn variant="secondary" onClick={() => setDeleteWorker(null)}>Cancel</Btn>
+            <Btn variant="danger" onClick={handleDelete} disabled={deleting} icon={Trash2}>{deleting ? "Deleting..." : "Delete Permanently"}</Btn>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
