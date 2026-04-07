@@ -1,187 +1,228 @@
-# BuildTrack — Construction Progress Management
+<div align="center">
 
-**Live Demo → [buildtrack-alpha.vercel.app](https://buildtrack-alpha.vercel.app)**
+# 🏗️ BuildTrack
 
+### Construction Progress Management Platform
 
-A full-stack web application for automating Daily Progress Reports (DPRs) on construction sites — featuring real-time cost tracking, inventory management, stage-wise progress monitoring, and team coordination.
+**Digitise daily site operations — from DPR submission to financial analytics.**
 
-Built as a learning project to develop practical skills in **vibe coding**, **AI-assisted development**, and **full-stack engineering** with modern tooling.
+[![Live Demo](https://img.shields.io/badge/Live_Demo-buildtrack--alpha.vercel.app-F97316?style=for-the-badge&logo=vercel&logoColor=white)](https://buildtrack-alpha.vercel.app)
+[![React](https://img.shields.io/badge/React_18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+[![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+[![Vite](https://img.shields.io/badge/Vite_5-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev)
 
----
-
-## What This Project Is
-
-BuildTrack solves a real problem in construction management: the manual, paper-based process of tracking daily site progress, costs, and material usage across multiple projects and teams. The application digitises the entire workflow — from submitting a daily report in the field to viewing financial analytics in the office.
-
----
-
-## Skills Developed
-
-### Vibe Coding
-The entire application was built through iterative, conversational development with an AI assistant rather than writing code line by line. This approach — often called vibe coding — involves describing what you want, reviewing the output, identifying what needs to change, and refining through structured feedback. The skill lies not in typing code, but in maintaining a clear vision of the product, recognising flaws quickly, and directing improvements precisely.
-
-### AI Prompting
-Every feature, bug fix, and architectural decision in this project was driven by a prompt. Writing good prompts for a complex, multi-screen application requires the same structured thinking as writing a good technical specification: clear context, explicit constraints, concrete examples, and a defined output format. A selection of the prompts used throughout this project is documented below.
-
-### Full-Stack Development Concepts
-Working through this project, even in a vibe coding workflow, builds genuine understanding of how full-stack systems are structured. Concepts encountered and applied include:
-
-- Component architecture and state management in React
-- Relational database design with foreign keys, computed columns, and normalisation
-- Row Level Security and why per-row vs. per-query policy evaluation matters for performance
-- Storage buckets, access policies, and file path scoping
-- Database triggers and the difference between a generated column and a trigger-maintained aggregate
-- Environment variable management and secrets hygiene in a Git workflow
+</div>
 
 ---
 
-## Prompting Log
+## The Problem
 
-The following prompts were used to build this project from the ground up. They are presented here as a structured record of the AI-assisted development process — both as personal documentation and as a practical reference for others exploring vibe coding and prompt engineering.
+Construction site management in India still runs on **paper-based Daily Progress Reports (DPRs)**. Site engineers fill out handwritten forms that are:
 
-Each prompt is written in the form it was actually submitted. The key skill being developed is not the sophistication of any single prompt, but the ability to move a complex product forward incrementally through clear, well-directed instructions.
+- Lost or damaged before reaching the office
+- Impossible to aggregate across multiple projects
+- Disconnected from budgets, materials, and labour data
+- Unable to surface cost overruns until it's too late
 
----
+Project managers and accountants operate blind — making decisions based on stale spreadsheets and phone calls rather than real-time data.
 
-### Phase 1 — Planning & Architecture
+## The Solution
 
-**Prompt 1 — Project Scoping**
+**BuildTrack** is a full-stack web application that replaces the entire paper-based workflow:
 
-> *"I want to build a web application for construction site management. The core feature is a Daily Progress Report system where site engineers can submit what work was done each day, how many workers were present, what the weather was, and a full cost breakdown across labor, materials, equipment, and other expenses. The app also needs project management, a materials and inventory module, a financial dashboard, and a team management section. Define the complete feature set, suggest the right tech stack, and outline the database schema I will need."*
+> **Field → Submit a DPR in 60 seconds** with weather, manpower, cost breakdown, and site photos.  
+> **Office → See real-time dashboards** with budget utilisation, cost trends, and delayed project alerts.
 
-**Intent:** Begin with a broad product brief rather than jumping straight to code. Defining scope, stack, and schema in one pass ensures that architectural decisions are made deliberately before any implementation begins.
-
----
-
-**Prompt 2 — Database Design**
-
-> *"Design a complete PostgreSQL database schema for BuildTrack. It should cover projects, daily progress reports with a computed total cost column, photo uploads linked to reports, a materials inventory system with stock automatically updated by usage and purchase triggers, a role-based access control system with an assignments table linking users to projects with a specific role, a per-user notifications table, and a stage progress tracker per project. Use lookup tables for floors and stages rather than free-text fields. Include all foreign keys, constraints, and check conditions."*
-
-**Intent:** A detailed schema prompt with explicit requirements for computed columns, triggers, lookup tables, and constraints — rather than asking for a generic schema and fixing problems later.
+Every data point flows through a single system — from the mason on-site to the CFO reviewing quarterly budgets.
 
 ---
 
-### Phase 2 — Backend Setup
+## Screenshots
 
-**Prompt 3 — Supabase Configuration**
+<div align="center">
 
-> *"Set up the full backend for BuildTrack on Supabase. Apply the schema, then configure Row Level Security on every table so that users can only access their own data. All RLS policies must use `(SELECT auth.uid())` rather than `auth.uid()` directly, so that the user ID is evaluated once per query rather than once per row. Add a covering index on every foreign key column. Create a Storage bucket called `dpr-photos` with a 10 MB file size limit, restricted to image types only, and with access policies scoped to each user's own folder path. Seed the user roles table with Admin, Project Manager, Site Engineer, and Accountant."*
+### Dashboard
+![Dashboard — KPI summary, quick actions, and project overview](docs/screenshots/dashboard.png)
 
-**Intent:** Infrastructure prompts benefit from being explicit about security and performance requirements — not just "set up RLS" but *how* it should be configured and why. This avoids common Supabase pitfalls like per-row policy evaluation and missing indexes.
+### Daily Progress Report
+![Submit DPR — weather, manpower, cost breakdown, photo upload](docs/screenshots/submit-dpr.png)
 
----
+### Reports & Analytics
+![Reports — cost trends, stage progress, filterable DPR table](docs/screenshots/reports.png)
 
-### Phase 3 — Frontend Development
+### Financial Dashboard
+![Financials — budget vs actual, cost categories, monthly trends](docs/screenshots/financials.png)
 
-**Prompt 4 — Full Application Build**
-
-> *"Build the complete BuildTrack frontend as a single production-quality React file using Vite. The application must include the following pages: a landing page, an authentication screen with sign in and sign up, an admin dashboard with KPI summary cards and quick-action navigation, a projects page with create and edit functionality, a DPR submission form with a weather selector and cascading floor-to-stage dropdowns, a reports page with five tabs covering overview charts, analytics, a filterable DPR table, a site photo gallery, and a stage progress tracker, a materials and inventory page with four tabs, a financial dashboard with budget versus actual charts and cost category breakdowns, and a user management page. Do not use any CSS framework. The design should feel industrial and professional — dark navy sidebar, construction-orange accent colour, Barlow typeface, white cards on a slate background."*
-
-**Intent:** A complete, single-prompt application specification with a clear design direction. Specificity about colour, typography, and layout avoids generic output and produces a cohesive visual identity from the first pass.
-
----
-
-**Prompt 5 — Quality Assurance Pass**
-
-> *"Go through the entire application systematically — every page, every tab, every button, every component. Read all the code carefully before making any changes. Identify every bug, broken interaction, incorrect data value, dead event handler, and anything that does not behave as intended. Then fix everything you find in a single pass."*
-
-**Intent:** A structured QA prompt that specifies reading the code before touching it. This prevents fixes being applied without full context, which often introduces new bugs while resolving existing ones.
+</div>
 
 ---
 
-**Prompt 6 — Targeted Bug Fixes**
+## Features
 
-> *"Three specific issues need to be resolved. First, the Sign Out button is completely non-functional — clicking it does nothing. Second, the Photos tab and the Stages tab are not displaying the content they should — I have attached screenshots showing exactly what these screens should contain. Third, the PDF Report and Excel Report download buttons are present but do not trigger any action. Please fix all three."*
-
-**Intent:** Targeted bug reports are most effective when they name the exact component, describe the exact failure, and provide visual evidence where available. Vague descriptions like "it's not working" produce slower and less accurate fixes than this format.
-
----
-
-### Phase 4 — Deployment
-
-**Prompt 7 — Repository and Deployment Setup**
-
-> *"Create a new GitHub repository called buildtrack under my account and push the complete project codebase to it. The repository should include a proper `.gitignore` that excludes `.env`, an `.env.example` file with placeholder variable names, a `vite.config.js`, and a `src/lib/supabase.js` file that initialises the Supabase client from environment variables. Initialise git, make the first commit, and provide the exact commands needed to push to GitHub."*
-
-**Intent:** Deployment and repository setup prompts should specify file hygiene requirements explicitly — particularly `.env` exclusion — since secrets committed to a public repository cannot be fully revoked.
-
----
-
-### Phase 5 — Documentation
-
-**Prompt 8 — README**
-
-> *"Write a professional GitHub README for BuildTrack that reflects the skills developed through building this project — vibe coding, AI prompt engineering, and full-stack development concepts. Include the prompts used at each stage of the project, written as polished, professional instructions rather than rough conversational notes, so that the README serves as both project documentation and a practical guide to the prompting methodology used."*
-
-**Intent:** Documentation that communicates learning intent and methodology, not just technical specifications. A README that explains how something was built is more valuable for a learning portfolio than one that only describes what was built.
+| Module | Capabilities |
+|--------|-------------|
+| **Dashboard** | KPI cards with count-up animations · Quick-action navigation · Delayed project alerts · Scroll progress indicator |
+| **Projects** | Create/edit with budget, GPS, site area · Budget utilisation bars with over-budget danger states · Project-level PDF reports |
+| **Submit DPR** | One-tap weather selector · Cascading floor → stage dropdowns · Full cost breakdown (labour, material, equipment, subcontractor, other) · Auto-calculated totals · Site photo upload |
+| **Reports** | 5-tab layout: Cost Trends · Analytics · DPR Table · Photo Gallery · Stage Progress · CSV and PDF export |
+| **Materials** | Inventory cards with low-stock pulse alerts · Usage/purchase history · Stock auto-updated via database triggers |
+| **Financials** | Budget vs. Actual bar charts · Cost category donut · Monthly spend trends · Per-project financial breakdown |
+| **Labour Register** | Category-based labour tracking (unskilled → supervisor) · Daily headcount trends |
+| **AI Assistant** | Context-aware project Q&A powered by LLM integration |
+| **User Management** | Role-based access (Admin, PM, Engineer, Accountant, Viewer) · Project-level assignments · Invite system |
 
 ---
 
 ## Tech Stack
 
-| Layer       | Technology                                        |
-|-------------|---------------------------------------------------|
-| Frontend    | React 18, Vite                                    |
-| Charts      | Recharts                                          |
-| Icons       | Lucide React                                      |
-| Backend     | Supabase (PostgreSQL 17, Auth, Storage, RLS)      |
-| Region      | ap-south-1 — Mumbai                               |
-| Deployment  | Vite build → static hosting                       |
+```
+┌─────────────────────────────────────────────────────────┐
+│  FRONTEND                                               │
+│  React 18 · Vite 5 · Recharts · Lucide Icons            │
+│  Custom CSS design system (no framework)                 │
+├─────────────────────────────────────────────────────────┤
+│  BACKEND                                                │
+│  Supabase (PostgreSQL 17)                               │
+│  ├── Row Level Security on every table                  │
+│  ├── Database triggers (auto-compute totals, stock)     │
+│  ├── Generated columns (DPR total_cost)                 │
+│  ├── Auth with email/password                           │
+│  └── Storage buckets (site photos, 10MB limit)          │
+├─────────────────────────────────────────────────────────┤
+│  DEPLOYMENT                                             │
+│  Vercel (auto-deploy on push) · Region: ap-south-1      │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Database Schema
+## Database Architecture
 
-Twelve tables with full Row Level Security across every user-facing entity.
+12 tables with full Row Level Security. All RLS policies use `(SELECT auth.uid())` for per-query evaluation (not per-row) to avoid performance degradation.
 
-| Table                        | Purpose                                                   |
-|------------------------------|-----------------------------------------------------------|
-| `projects`                   | Core project records                                      |
-| `daily_reports`              | DPR submissions with auto-computed `total_cost`           |
-| `dpr_photos`                 | Photo metadata linked to reports and projects             |
-| `materials`                  | Inventory master list                                     |
-| `material_usage`             | Usage log — auto-decrements stock via trigger             |
-| `material_purchases`         | Procurement log — auto-increments stock via trigger       |
-| `user_roles`                 | RBAC role definitions (seeded: Admin, PM, Engineer, Accountant) |
-| `user_project_assignments`   | User ↔ Project ↔ Role assignment table                   |
-| `notifications`              | Per-user notification inbox (server-side insert only)     |
-| `project_stage_progress`     | Stage completion percentage per project                   |
-| `floors`                     | Lookup table — replaces free-text floor field             |
-| `stages`                     | Lookup table — replaces free-text stage field             |
+| Table | Purpose |
+|-------|---------|
+| `projects` | Core project records with budget and GPS |
+| `daily_reports` | DPR submissions — `total_cost` is a GENERATED ALWAYS column |
+| `dpr_photos` | Photo metadata linked to reports and projects |
+| `materials` | Inventory master list with stock levels |
+| `material_usage` | Usage log — auto-decrements stock via trigger |
+| `material_purchases` | Procurement log — auto-increments stock via trigger |
+| `user_roles` | RBAC role definitions (Admin, PM, Engineer, Accountant) |
+| `user_project_assignments` | User ↔ Project ↔ Role junction table |
+| `notifications` | Per-user notification inbox |
+| `project_stage_progress` | Stage completion tracking per project |
+| `floors` | Lookup table (replaces free-text) |
+| `stages` | Lookup table (replaces free-text) |
 
 ---
 
-## Running Locally
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- A [Supabase](https://supabase.com) project with the schema applied
+
+### Installation
 
 ```bash
+# Clone the repository
 git clone https://github.com/tarunrwt/buildtrack.git
 cd buildtrack
+
+# Install dependencies
 npm install
+
+# Configure environment
 cp .env.example .env
-# Add your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env
+# Edit .env with your Supabase credentials:
+#   VITE_SUPABASE_URL=https://your-project.supabase.co
+#   VITE_SUPABASE_ANON_KEY=your-anon-key
+
+# Start development server
 npm run dev
 ```
 
-The development server starts at `http://localhost:5173`.
+The app starts at `http://localhost:5173`.
+
+### Build for Production
+
+```bash
+npm run build    # Output in dist/
+npm run preview  # Preview production build locally
+```
 
 ---
 
-## Application Features
+## Project Structure
 
-**Dashboard** — Summary KPIs, recent activity, and quick-access cards for all modules.
-
-**Projects** — Create and edit projects with budget, site area, GPS coordinates, and budget utilisation progress bars.
-
-**Submit DPR** — Weather selector, cascading floor → stage dropdowns, manpower count, full cost breakdown with auto-calculated total, and draft saving.
-
-**Reports** — Five tabs: cost trend charts, analytics with category breakdown, filterable DPR table, site photo gallery, and stage-by-stage progress tracker. PDF and CSV export functional.
-
-**Materials & Inventory** — Material cards with low-stock alerts, usage log, purchase history, and category analytics.
-
-**Financial Dashboard** — Budget vs. actual bar chart, cost category donut, monthly expenditure trend, and per-project financial summary.
-
-**User Management** — Team member table with roles, role permissions reference, and invite modal with project assignment.
+```
+buildtrack/
+├── index.html              # Entry point
+├── vite.config.js          # Vite configuration
+├── package.json
+├── .env.example            # Environment template (safe to commit)
+├── src/
+│   ├── main.jsx            # React root mount
+│   ├── App.jsx             # All pages, components, and routing
+│   └── lib/
+│       ├── supabase.js     # Supabase client initialisation
+│       ├── financialEngine.ts  # Single source of truth — all financial calcs
+│       └── reportEngine.ts     # Single source of truth — report aggregations
+├── supabase/
+│   └── README.md           # Schema reference
+└── docs/
+    └── screenshots/        # App screenshots for documentation
+```
 
 ---
 
-*Built by Tarun Rawat — 2026*
+## Architecture Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **Single-file React app** | MVP-phase simplicity — all 3800+ lines in `App.jsx` with clear section headers. Production refactor would split by feature module. |
+| **No CSS framework** | Full control over the industrial design language (dark navy sidebar, construction-orange accents, Barlow typeface). |
+| **Generated columns over app-side calc** | `daily_reports.total_cost` is computed by PostgreSQL — self-healing, tamper-proof, zero client-side drift. |
+| **Centralised financial engine** | `financialEngine.ts` eliminates dual computation paths. Dashboard, Reports, and Financials all show identical numbers. |
+| **RLS with `(SELECT auth.uid())`** | Evaluated once per query, not once per row. Critical for tables with thousands of DPR records. |
+
+---
+
+## Development Methodology
+
+This project was built through **AI-assisted iterative development** — describing features in plain language, reviewing generated code, identifying defects, and directing corrections through structured prompts.
+
+Key skills developed:
+- **Prompt engineering** — writing technical specifications as prompts with constraints, edge cases, and output formats
+- **System design** — relational schema design with triggers, RLS, generated columns, and lookup tables
+- **Debugging** — diagnosing React hooks violations, auth race conditions, and state management bugs
+- **Code review** — identifying dual computation paths, over-budget colour logic errors, and loading deadlocks
+
+---
+
+## Roadmap
+
+- [ ] **Error Boundary** — Wrap main content to prevent blank-screen crashes
+- [ ] **Realtime subscriptions** — Live updates via Supabase Realtime on DPRs and projects
+- [ ] **Offline-first DPR** — Service worker for field submission without connectivity
+- [ ] **Mobile app** — React Native wrapper for site engineers
+- [ ] **PDF reports** — Server-side PDF generation with charts
+- [ ] **Multi-tenant** — Organisation-level isolation for construction firms
+
+---
+
+## Author
+
+**Tarun Rawat**
+
+[![GitHub](https://img.shields.io/badge/GitHub-tarunrwt-181717?style=flat-square&logo=github)](https://github.com/tarunrwt)
+
+---
+
+<div align="center">
+
+*Built with ☕ and structured prompts — 2026*
+
+</div>
