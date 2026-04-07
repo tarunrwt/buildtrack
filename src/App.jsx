@@ -2981,7 +2981,6 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
   const isAdmin = userRole === "admin"
 
   const ROLE_OPTIONS = [
-    { value: "admin",           label: "Admin" },
     { value: "project_manager", label: "Project Manager" },
     { value: "accountant",      label: "Accountant" },
     { value: "site_engineer",   label: "Site Engineer" },
@@ -3163,7 +3162,10 @@ const UserManagement = ({ user, userRole, projects, notifications, onMarkAllRead
                               )}
                             </td>
                             <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                              <Badge label={`${assignCount} project${assignCount !== 1 ? "s" : ""}`} color={assignCount > 0 ? C.info : C.textMuted} bg={assignCount > 0 ? "#DBEAFE" : "#F1F5F9"} />
+                              {p.role === "admin"
+                                ? <Badge label="All Projects" color="#6366F1" bg="#EDE9FE" />
+                                : <Badge label={`${assignCount} project${assignCount !== 1 ? "s" : ""}`} color={assignCount > 0 ? C.info : C.textMuted} bg={assignCount > 0 ? "#DBEAFE" : "#F1F5F9"} />
+                              }
                             </td>
                             <td style={{ padding: "10px 14px", color: C.textMuted }}>
                               {p.created_at ? new Date(p.created_at).toLocaleDateString("en-IN") : "—"}
