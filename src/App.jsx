@@ -4243,34 +4243,54 @@ const AttendanceReportTab = ({ projects }) => {
 const LabourRegister = ({ user, projects, notifications, onMarkAllRead }) => {
   const [activeTab, setActiveTab] = useState("bulk")
 
+  const hasProjects = (projects || []).length > 0
+
   return (
     <div style={{ padding: 28 }}>
       <TopBar title="Labour Register" subtitle="Attendance, worker management & wage tracking" notifications={notifications} onMarkAllRead={onMarkAllRead} />
 
-      {/* Tab Navigation */}
-      <div style={{ display: "flex", gap: 4, marginTop: 24, background: "#F1F5F9", borderRadius: 12, padding: 4 }}>
-        {ATTENDANCE_TABS.map(t => {
-          const active = activeTab === t.key
-          const Icon = t.icon
-          return (
-            <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
-              flex: 1, padding: "12px 16px", borderRadius: 10, border: "none", cursor: "pointer",
-              background: active ? C.card : "transparent", color: active ? C.accent : C.textMuted,
-              fontFamily: FONT, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center",
-              justifyContent: "center", gap: 8, transition: "all 0.2s ease",
-              boxShadow: active ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
-            }}>
-              <Icon size={16} /> {t.label}
-            </button>
-          )
-        })}
-      </div>
+      {!hasProjects ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#F1F5F9", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+            <Users size={32} color={C.textMuted} />
+          </div>
+          <p style={{ fontFamily: FONT_HEADING, fontSize: 20, fontWeight: 700, color: C.text, margin: "0 0 8px" }}>No Projects Found</p>
+          <p style={{ fontFamily: FONT, fontSize: 14, color: C.textMuted, margin: "0 0 24px", maxWidth: 380, lineHeight: 1.6 }}>
+            Labour attendance and wage tracking is organised by project. Create your first project to start managing your workforce.
+          </p>
+          <div style={{ background: "#F8FAFC", border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px 24px", display: "flex", alignItems: "center", gap: 12 }}>
+            <AlertTriangle size={18} color={C.warning} />
+            <p style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, margin: 0 }}>Go to <strong>Projects</strong> and create a project first.</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Tab Navigation */}
+          <div style={{ display: "flex", gap: 4, marginTop: 24, background: "#F1F5F9", borderRadius: 12, padding: 4 }}>
+            {ATTENDANCE_TABS.map(t => {
+              const active = activeTab === t.key
+              const Icon = t.icon
+              return (
+                <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+                  flex: 1, padding: "12px 16px", borderRadius: 10, border: "none", cursor: "pointer",
+                  background: active ? C.card : "transparent", color: active ? C.accent : C.textMuted,
+                  fontFamily: FONT, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center",
+                  justifyContent: "center", gap: 8, transition: "all 0.2s ease",
+                  boxShadow: active ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
+                }}>
+                  <Icon size={16} /> {t.label}
+                </button>
+              )
+            })}
+          </div>
 
-      {/* Tab Content */}
-      {activeTab === "bulk"   && <BulkEntryTab user={user} projects={projects} />}
-      {activeTab === "manage" && <ManageWorkersTab user={user} projects={projects} />}
-      {activeTab === "mark"   && <MarkAttendanceTab user={user} projects={projects} />}
-      {activeTab === "report" && <AttendanceReportTab projects={projects} />}
+          {/* Tab Content */}
+          {activeTab === "bulk"   && <BulkEntryTab user={user} projects={projects} />}
+          {activeTab === "manage" && <ManageWorkersTab user={user} projects={projects} />}
+          {activeTab === "mark"   && <MarkAttendanceTab user={user} projects={projects} />}
+          {activeTab === "report" && <AttendanceReportTab projects={projects} />}
+        </>
+      )}
     </div>
   )
 }
