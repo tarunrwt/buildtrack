@@ -149,12 +149,12 @@ The app starts at `http://localhost:5173`.
 
 ### Database Setup
 
-Apply the migrations in `supabase/migrations/` in numeric order against your Supabase project using the SQL editor or Supabase CLI:
+Apply the migrations in `supabase/` in numeric order against your Supabase project using the SQL editor or Supabase CLI:
 
 ```
-supabase/migrations/006_add_site_issues.sql
-supabase/migrations/007_add_labourer_attendance.sql
-supabase/migrations/008_add_viewer_accountant_roles.sql
+supabase/006_add_site_issues.sql
+supabase/007_add_labourer_attendance.sql
+supabase/008_add_viewer_accountant_roles.sql
 ```
 
 ### Build for Production
@@ -170,23 +170,32 @@ npm run preview  # Preview production build locally
 
 ```
 buildtrack/
-├── index.html              # Entry point
-├── vite.config.js          # Vite configuration
+├── public/
+│   └── favicon.svg             # Brand favicon
+├── index.html                  # Entry point with full SEO meta tags
+├── vite.config.js              # Vite configuration with @/ path alias
+├── tailwind.config.js          # Tailwind CSS (used by landing page)
 ├── package.json
-├── .env.example            # Environment template (safe to commit)
-├── LICENSE                 # MIT
+├── .env.example                # Environment variable template (safe to commit)
+├── LICENSE                     # MIT
 ├── src/
-│   ├── main.jsx            # React root mount
-│   ├── App.jsx             # All pages, components, and routing
+│   ├── main.jsx                # React root mount
+│   ├── App.jsx                 # All app pages, components, and routing
+│   ├── landing/
+│   │   ├── Landing.jsx         # Public-facing marketing landing page
+│   │   └── landing.css         # Landing page styles (Tailwind + custom animations)
 │   └── lib/
-│       ├── supabase.js         # Supabase client initialisation
-│       ├── financialEngine.ts  # Single source of truth — all financial calcs
-│       └── reportEngine.ts     # Single source of truth — report aggregations
+│       ├── supabase.js             # Supabase client initialisation
+│       ├── financialEngine.ts      # Single source of truth — all financial calcs
+│       └── reportEngine.ts         # Single source of truth — report aggregations
 ├── supabase/
-│   └── migrations/
-│       ├── 006_add_site_issues.sql
-│       ├── 007_add_labourer_attendance.sql
-│       └── 008_add_viewer_accountant_roles.sql
+│   ├── migrations/
+│   │   ├── README.md                        # Schema reference and migration guide
+│   │   ├── 006_add_site_issues.sql          # Site issue tracking with AI categories
+│   │   ├── 007_add_labourer_attendance.sql  # Daily headcount by labour category
+│   │   └── 008_add_viewer_accountant_roles.sql # Extended RBAC roles
+│   └── seed/
+│       └── dev_seed.sql        # Development seed data (gitignored — never commit)
 └── docs/
     └── screenshots/            # App screenshots for documentation
 ```

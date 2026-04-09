@@ -35,3 +35,7 @@ pnpm-debug.log*
 
 # ─── Code review graph (local analysis, not source) ───────
 .code-review-graph/
+
+# ─── Supabase seed / test data (never commit to production) ──
+supabase/seed/
+supabase/999_seed_testing_data.sql
