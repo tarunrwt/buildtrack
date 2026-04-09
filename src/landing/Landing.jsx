@@ -352,7 +352,39 @@ const HeroSection = ({ onLogin }) => {
               </div>
 
               {/* Floating badge 1 — DPR submitted */}
-              <div className="floating-badge absolute// ─────────────────────────────────────────────────────────────────────────────
+              <div className="floating-badge absolute -top-8 -right-10">
+                <FloatingCard
+                  icon={FileText}
+                  label="DPR Submitted"
+                  value="2 min ago"
+                  color="#10B981"
+                  className="w-[160px]"
+                />
+              </div>
+
+              {/* Floating badge 2 — alert */}
+              <div className="floating-badge-2 absolute -bottom-8 -left-10">
+                <FloatingCard
+                  icon={AlertTriangle}
+                  label="Budget Alert"
+                  value="Steel 94% Used"
+                  color="#F59E0B"
+                  className="w-[170px]"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom fade into white */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none"
+        style={{ background: "linear-gradient(to bottom, transparent, #F8FAFC)" }} />
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PROBLEM SECTION
 // ─────────────────────────────────────────────────────────────────────────────
 
