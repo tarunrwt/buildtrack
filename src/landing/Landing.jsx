@@ -248,8 +248,7 @@ const HeroSection = ({ onLogin }) => {
             {/* Sub-headline */}
             <p className="text-white/60 text-lg font-barlow font-400 leading-relaxed mb-8 max-w-xl"
               style={{ animation: "fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) 600ms both" }}>
-              Submit Daily Progress Reports in 60 seconds. Track real-time budgets,
-              labour, materials, and site issues — from ground floor to boardroom.
+              Submit DPRs in 60 seconds. Track budgets, labour, materials, and site issues — all in real time.
             </p>
 
             {/* CTAs */}
@@ -470,36 +469,7 @@ const ProblemSection = () => {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FEATURES SECTION>
-              ))}
-            </ul>
-          </div>
 
-          {/* After card */}
-          <div className="reveal bg-gradient-to-br from-sidebar to-navy border border-sidebar rounded-3xl p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-accent/20 rounded-lg flex items-center justify-center">
-                <CheckCircle size={16} color="#F97316" />
-              </div>
-              <h3 className="font-condensed font-700 text-xl text-white">With BuildTrack</h3>
-            </div>
-            <ul className="space-y-4 stagger">
-              {solutions.map(({ icon: Ic, text }) => (
-                <li key={text} className="reveal flex items-start gap-3">
-                  <div className="w-8 h-8 bg-accent/15 rounded-lg border border-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Ic size={14} color="#F97316" />
-                  </div>
-                  <span className="text-white/80 font-barlow text-sm leading-relaxed">{text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FEATURES SECTION
@@ -765,53 +735,193 @@ const FinalCTASection = ({ onLogin }) => (
 // FOOTER
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LandingFooter = ({ onLogin }) => (
-  <footer className="bg-gray-900 border-t border-white/5 py-14">
-    <div className="max-w-7xl mx-auto px-6 lg:px-8">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-10">
-        {/* Brand */}
-        <div className="md:col-span-1">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 bg-accent rounded-lg flex items-center justify-center">
-              <HardHat size={14} color="#fff" />
-            </div>
-            <span className="font-condensed font-800 text-lg text-white tracking-wide">
-              Build<span className="text-accent">Track</span>
-            </span>
+const LandingFooter = ({ onLogin }) => {
+  const [modal, setModal] = useState(null)
+
+  const cols = [
+    {
+      heading: "Platform",
+      links: [
+        { label: "Dashboard",      fn: onLogin },
+        { label: "DPR Submission", fn: onLogin },
+        { label: "Financials",     fn: onLogin },
+        { label: "AI Assistant",   fn: onLogin },
+      ],
+    },
+    {
+      heading: "Company",
+      links: [
+        { label: "About",   href: "#features" },
+        { label: "Roadmap", href: "https://github.com/tarunrwt/buildtrack#roadmap", ext: true },
+        { label: "GitHub",  href: "https://github.com/tarunrwt/buildtrack", ext: true },
+      ],
+    },
+    {
+      heading: "Legal",
+      links: [
+        { label: "Privacy Policy",   fn: () => setModal("privacy") },
+        { label: "Terms of Service", fn: () => setModal("terms") },
+        { label: "MIT License",      href: "https://github.com/tarunrwt/buildtrack/blob/main/LICENSE", ext: true },
+      ],
+    },
+  ]
+
+  return (
+    <>
+      {/* Modal Overlay */}
+      {modal && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setModal(null)}
+        >
+          <div
+            className="bg-gray-900 border border-white/10 rounded-2xl p-8 max-w-lg w-full max-h-[80vh] overflow-y-auto relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setModal(null)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
+            >
+              <X size={20} />
+            </button>
+
+            {modal === "privacy" ? (
+              <>
+                <h2 className="font-condensed font-800 text-2xl text-white mb-6">Privacy Policy</h2>
+                <div className="text-white/60 font-barlow text-sm leading-relaxed space-y-4">
+                  <p><strong className="text-white/80">Last updated:</strong> April 2026</p>
+                  <p>
+                    BuildTrack collects only the information you provide during registration (name, email address)
+                    and project data you enter while using the platform. We do not sell, trade, or share your data
+                    with third parties.
+                  </p>
+                  <p>
+                    All project data is stored securely on Supabase (PostgreSQL 17) with row-level security policies
+                    applied to every table. Authentication is handled by Supabase Auth.
+                  </p>
+                  <p>
+                    Site photos uploaded via DPR submissions are stored in Supabase Storage buckets. Access is
+                    controlled by your assigned project role and enforced at the database level.
+                  </p>
+                  <p>
+                    For questions or data deletion requests, contact us via{" "}
+                    <a
+                      href="https://github.com/tarunrwt/buildtrack"
+                      className="text-accent hover:underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      GitHub
+                    </a>.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="font-condensed font-800 text-2xl text-white mb-6">Terms of Service</h2>
+                <div className="text-white/60 font-barlow text-sm leading-relaxed space-y-4">
+                  <p><strong className="text-white/80">Last updated:</strong> April 2026</p>
+                  <p>
+                    By accessing or using BuildTrack, you agree to use the platform solely for its intended purpose:
+                    construction project management, daily progress reporting, and related site operations.
+                  </p>
+                  <p>
+                    You are responsible for the accuracy of data you enter and for maintaining the confidentiality
+                    of your account credentials.
+                  </p>
+                  <p>
+                    BuildTrack is provided as-is under the MIT License and is currently in active development.
+                    The service may be modified, updated, or discontinued without prior notice during the alpha phase.
+                  </p>
+                  <p>
+                    Data export is available via the Reports section (CSV). Source code is publicly available on{" "}
+                    <a
+                      href="https://github.com/tarunrwt/buildtrack"
+                      className="text-accent hover:underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      GitHub
+                    </a>.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
-          <p className="text-white/40 font-barlow text-sm leading-relaxed">
-            Construction progress management for modern India.
-          </p>
         </div>
+      )}
 
-        {/* Links */}
-        {[
-          { heading: "Platform",  links: ["Dashboard", "DPR Submission", "Financials", "AI Assistant"] },
-          { heading: "Company",   links: ["About", "Roadmap", "GitHub"] },
-          { heading: "Legal",     links: ["Privacy Policy", "Terms of Service", "MIT License"] },
-        ].map(col => (
-          <div key={col.heading}>
-            <p className="text-white font-condensed font-700 text-sm uppercase tracking-widest mb-3">{col.heading}</p>
-            <ul className="space-y-2">
-              {col.links.map(l => (
-                <li key={l}>
-                  <span className="text-white/40 hover:text-white/70 font-barlow text-sm transition-colors cursor-pointer">{l}</span>
-                </li>
-              ))}
-            </ul>
+      <footer className="bg-gray-900 border-t border-white/5 py-14">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-10">
+            {/* Brand */}
+            <div className="md:col-span-1">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 bg-accent rounded-lg flex items-center justify-center">
+                  <HardHat size={14} color="#fff" />
+                </div>
+                <span className="font-condensed font-800 text-lg text-white tracking-wide">
+                  Build<span className="text-accent">Track</span>
+                </span>
+              </div>
+              <p className="text-white/40 font-barlow text-sm leading-relaxed">
+                Construction progress management for modern India.
+              </p>
+            </div>
+
+            {/* Link columns */}
+            {cols.map(col => (
+              <div key={col.heading}>
+                <p className="text-white font-condensed font-700 text-sm uppercase tracking-widest mb-3">
+                  {col.heading}
+                </p>
+                <ul className="space-y-2">
+                  {col.links.map(link => (
+                    <li key={link.label}>
+                      {link.href ? (
+                        <a
+                          href={link.href}
+                          {...(link.ext ? { target: "_blank", rel: "noreferrer" } : {})}
+                          className="text-white/40 hover:text-white/80 font-barlow text-sm transition-colors duration-150"
+                        >
+                          {link.label}
+                        </a>
+                      ) : (
+                        <button
+                          onClick={link.fn}
+                          className="text-white/40 hover:text-white/80 font-barlow text-sm transition-colors duration-150 text-left w-full"
+                        >
+                          {link.label}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div className="border-t border-white/8 pt-6 flex flex-col md:flex-row justify-between items-center gap-3">
-        <p className="text-white/30 font-barlow text-xs">
-          © 2026 BuildTrack — Built for India's construction industry.
-        </p>
-        <p className="text-white/20 font-barlow text-xs">MIT License · <a href="https://github.com/tarunrwt/buildtrack" className="hover:text-white/50 transition-colors underline underline-offset-2">GitHub</a></p>
-      </div>
-    </div>
-  </footer>
-)
+          <div className="border-t border-white/8 pt-6 flex flex-col md:flex-row justify-between items-center gap-3">
+            <p className="text-white/30 font-barlow text-xs">
+              © 2026 BuildTrack — Built for India\'s construction industry.
+            </p>
+            <p className="text-white/20 font-barlow text-xs">
+              MIT License ·{" "}
+              <a
+                href="https://github.com/tarunrwt/buildtrack"
+                className="hover:text-white/50 transition-colors underline underline-offset-2"
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub
+              </a>
+            </p>
+          </div>
+        </div>
+      </footer>
+    </>
+  )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROOT LANDING COMPONENT
