@@ -79,7 +79,7 @@ const LandingNav = ({ onLogin }) => {
     return () => window.removeEventListener("scroll", handler)
   }, [])
 
-  const navLinks = ["Features", "Dashboard", "Pricing"]
+  const navLinks = ["Features", "Dashboard"]
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -352,54 +352,20 @@ const HeroSection = ({ onLogin }) => {
               </div>
 
               {/* Floating badge 1 — DPR submitted */}
-              <div className="floating-badge absolute -top-8 -right-10">
-                <FloatingCard
-                  icon={FileText}
-                  label="DPR Submitted"
-                  value="2 min ago"
-                  color="#10B981"
-                  className="w-[160px]"
-                />
-              </div>
-
-              {/* Floating badge 2 — alert */}
-              <div className="floating-badge-2 absolute -bottom-8 -left-10">
-                <FloatingCard
-                  icon={AlertTriangle}
-                  label="Budget Alert"
-                  value="Steel 94% Used"
-                  color="#F59E0B"
-                  className="w-[170px]"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom fade into white */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none"
-        style={{ background: "linear-gradient(to bottom, transparent, #F8FAFC)" }} />
-    </section>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
+              <div className="floating-badge absolute// ─────────────────────────────────────────────────────────────────────────────
 // PROBLEM SECTION
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ProblemSection = () => {
   const problems = [
-    { icon: FileText,      text: "Paper DPRs lost before reaching the office", },
-    { icon: AlertTriangle, text: "Cost overruns spotted weeks too late",        },
-    { icon: Users,         text: "No visibility across multiple project sites", },
-    { icon: Clock,         text: "Hours wasted on manual spreadsheet updates",  },
+    { icon: FileText,      text: "Paper DPRs lost in transit" },
+    { icon: AlertTriangle, text: "Cost overruns spotted too late" },
+    { icon: Clock,         text: "Hours wasted updating spreadsheets" },
   ]
   const solutions = [
-    { icon: FileText,   text: "Digital DPR in 60 seconds — from any device"          },
-    { icon: TrendingUp, text: "Real-time cost dashboards with instant alerts"         },
-    { icon: Layers,     text: "All projects in one unified operations hub"            },
-    { icon: Zap,        text: "Automated calculations — zero manual data entry"       },
+    { icon: FileText,   text: "Digital DPRs in 60 seconds" },
+    { icon: TrendingUp, text: "Real-time cost dashboards" },
+    { icon: Zap,        text: "Zero manual data entry" },
   ]
 
   return (
@@ -413,30 +379,67 @@ const ProblemSection = () => {
             Construction runs blind.<br />
             <span className="text-danger">Until it's too late.</span>
           </h2>
-          <p className="text-gray-500 font-barlow text-lg mt-4 max-w-2xl mx-auto">
-            India's construction projects still lose millions to paper-based chaos —
-            but it doesn't have to be this way.
-          </p>
         </div>
 
         {/* Comparison grid */}
         <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
           {/* Before card */}
-          <div className="reveal bg-red-50 border border-red-100 rounded-3xl p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                <X size={16} className="text-danger" color="#EF4444" />
+          <div className="reveal bg-red-50 border border-red-100 rounded-3xl p-8 md:p-10">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center border border-red-200">
+                <X size={18} className="text-danger" color="#EF4444" />
               </div>
-              <h3 className="font-condensed font-700 text-xl text-gray-900">Without BuildTrack</h3>
+              <h3 className="font-condensed font-800 text-2xl text-gray-900">Without BuildTrack</h3>
             </div>
-            <ul className="space-y-4 stagger">
+            <ul className="space-y-6 stagger">
               {problems.map(({ icon: Ic, text }) => (
-                <li key={text} className="reveal flex items-start gap-3">
-                  <div className="w-8 h-8 bg-white rounded-lg border border-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Ic size={14} color="#EF4444" />
+                <li key={text} className="reveal flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white rounded-xl border border-red-100 flex items-center justify-center flex-shrink-0 shadow-sm shadow-black/5">
+                    <Ic size={16} color="#EF4444" />
                   </div>
-                  <span className="text-gray-600 font-barlow text-sm leading-relaxed">{text}</span>
+                  <span className="text-gray-600 font-barlow text-lg font-500">{text}</span>
                 </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* After card */}
+          <div className="reveal bg-gradient-to-br from-sidebar to-navy border border-sidebar rounded-3xl p-8 md:p-10 relative overflow-hidden group">
+            {/* Background flair */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
+            
+            <div className="relative z-10 flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 bg-accent/20 rounded-xl flex items-center justify-center border border-accent/25">
+                <CheckCircle size={18} color="#F97316" />
+              </div>
+              <h3 className="font-condensed font-800 text-2xl text-white">With BuildTrack</h3>
+            </div>
+            <ul className="relative z-10 space-y-6 stagger mb-8">
+              {solutions.map(({ icon: Ic, text }) => (
+                <li key={text} className="reveal flex items-center gap-4">
+                  <div className="w-10 h-10 bg-accent/10 rounded-xl border border-accent/20 flex items-center justify-center flex-shrink-0 shadow-sm shadow-black/5">
+                    <Ic size={16} color="#F97316" />
+                  </div>
+                  <span className="text-white/90 font-barlow text-lg font-500">{text}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Actionable CTA */}
+            <div className="relative z-10 pt-6 border-t border-white/10">
+              <a href="#features" className="inline-flex items-center gap-2 text-white font-barlow font-600 text-base transition-all group-hover:gap-3 group-hover:text-accent">
+                See how it works <ArrowRight size={18} />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FEATURES SECTION>
               ))}
             </ul>
           </div>
@@ -472,60 +475,24 @@ const ProblemSection = () => {
 
 const features = [
   {
-    icon: FileText,
-    title: "Daily Progress Reports",
-    desc: "Submit a full DPR — weather, manpower, costs, and site photos — in under 60 seconds.",
-    color: "#F97316",
-    size: "lg",
+    icon: FileText, title: "Daily Progress Reports",
+    desc: "Submit weather, manpower, costs, and photos in under 60 seconds.",
+    color: "#F97316", size: "lg",
   },
   {
-    icon: DollarSign,
-    title: "Financial Analytics",
-    desc: "Budget vs. actual dashboards. Live cost burn rate. Zero spreadsheet math.",
-    color: "#10B981",
-    size: "sm",
+    icon: DollarSign, title: "Financial Analytics",
+    desc: "Live cost burn rate. Zero spreadsheet math.",
+    color: "#10B981", size: "sm",
   },
   {
-    icon: Package,
-    title: "Material Inventory",
-    desc: "Real-time stock levels with automated low-stock pulse alerts.",
-    color: "#3B82F6",
-    size: "sm",
+    icon: Bot, title: "AI Site Assistant",
+    desc: "Context-aware project Q&A. Get instant answers in English or Hindi.",
+    color: "#EC4899", size: "lg",
   },
   {
-    icon: Wrench,
-    title: "Labour Register",
-    desc: "Track attendance and headcount by skill category across all floors.",
-    color: "#8B5CF6",
-    size: "sm",
-  },
-  {
-    icon: AlertTriangle,
-    title: "Site Issue Logger",
-    desc: "Raise, track, and resolve site issues with severity classification and AI analysis.",
-    color: "#F59E0B",
-    size: "sm",
-  },
-  {
-    icon: Bot,
-    title: "AI Assistant",
-    desc: "Context-aware project Q&A. Ask about your site, get instant answers in English or Hindi.",
-    color: "#EC4899",
-    size: "lg",
-  },
-  {
-    icon: BarChart2,
-    title: "Reports & Analytics",
-    desc: "Cost trends, stage progress, photo gallery, and CSV/PDF exports.",
-    color: "#14B8A6",
-    size: "sm",
-  },
-  {
-    icon: Users,
-    title: "Role-Based Access",
-    desc: "Admin, PM, Engineer, Accountant, Viewer — with project-level assignments.",
-    color: "#F97316",
-    size: "sm",
+    icon: Package, title: "Material Inventory",
+    desc: "Real-time stock tracking with automated low-stock alerts.",
+    color: "#3B82F6", size: "sm",
   },
 ]
 
@@ -540,25 +507,27 @@ const FeaturesSection = () => (
           Everything in one<br />
           <span className="gradient-text">command center.</span>
         </h2>
-        <p className="text-gray-500 font-barlow text-lg mt-4 max-w-xl mx-auto">
-          Eight integrated modules that replace your scattered tools, spreadsheets, and WhatsApp chains.
-        </p>
       </div>
 
       {/* Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 stagger">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 stagger text-left">
         {features.map(({ icon: Ic, title, desc, color, size }) => (
           <div
             key={title}
-            className={`feature-card reveal bento-card bg-white border border-gray-100 rounded-2xl p-6 cursor-default
+            className={`group reveal bento-card bg-white border border-gray-100 rounded-3xl p-8 cursor-pointer transition-all hover:shadow-2xl hover:shadow-black/5 hover:-translate-y-1
               ${size === "lg" ? "md:col-span-2" : ""}`}
           >
-            <div className="feature-icon w-11 h-11 rounded-xl flex items-center justify-center mb-4"
-              style={{ background: color + "18" }}>
-              <Ic size={20} color={color} />
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
+                style={{ background: color + "18" }}>
+                <Ic size={24} color={color} />
+              </div>
+              <div className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0" style={{ color }}>
+                <ArrowRight size={14} />
+              </div>
             </div>
-            <h3 className="font-condensed font-700 text-lg text-gray-900 mb-1.5">{title}</h3>
-            <p className="text-gray-500 font-barlow text-sm leading-relaxed">{desc}</p>
+            <h3 className="font-condensed font-800 text-2xl text-gray-900 mb-2">{title}</h3>
+            <p className="text-gray-500 font-barlow text-base leading-relaxed">{desc}</p>
           </div>
         ))}
       </div>
