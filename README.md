@@ -10,31 +10,16 @@
 [![React](https://img.shields.io/badge/React_18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
 [![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
 [![Vite](https://img.shields.io/badge/Vite_5-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev)
+[![CI](https://github.com/tarunrwt/buildtrack/actions/workflows/ci.yml/badge.svg)](https://github.com/tarunrwt/buildtrack/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 </div>
 
 ---
 
-## The Problem
+Construction site management in India still runs on paper. Daily Progress Reports get handwritten, photographed, and WhatsApp'd to the office — where someone types them into a spreadsheet. Budget problems get noticed a month late. Materials run out without warning.
 
-Construction site management in India still runs on **paper-based Daily Progress Reports (DPRs)**. Site engineers fill out handwritten forms that are:
-
-- Lost or damaged before reaching the office
-- Impossible to aggregate across multiple projects
-- Disconnected from budgets, materials, and labour data
-- Unable to surface cost overruns until it's too late
-
-Project managers and accountants operate blind — making decisions based on stale spreadsheets and phone calls rather than real-time data.
-
-## The Solution
-
-**BuildTrack** is a full-stack web application that replaces the entire paper-based workflow:
-
-> **Field → Submit a DPR in 60 seconds** with weather, manpower, cost breakdown, and site photos.  
-> **Office → See real-time dashboards** with budget utilisation, cost trends, and delayed project alerts.
-
-Every data point flows through a single system — from the mason on-site to the CFO reviewing quarterly budgets.
+BuildTrack replaces that entire workflow. Engineers submit DPRs from the field in under 60 seconds. Project managers see live dashboards. Materials and labour are tracked automatically.
 
 ---
 
@@ -58,111 +43,92 @@ Every data point flows through a single system — from the mason on-site to the
 
 ---
 
-## Features
+## What it does
 
 | Module | Capabilities |
 |--------|-------------|
-| **Dashboard** | KPI cards with count-up animations · Quick-action navigation · Delayed project alerts · Scroll progress indicator |
-| **Projects** | Create/edit with budget, GPS, site area · Budget utilisation bars with over-budget danger states · Project-level PDF reports |
+| **Dashboard** | KPI cards with count-up animations · Quick-action navigation · Delayed project alerts |
+| **Projects** | Create/edit with budget, GPS, site area · Budget utilisation bars · Project-level PDF reports |
 | **Submit DPR** | One-tap weather selector · Cascading floor → stage dropdowns · Full cost breakdown (labour, material, equipment, subcontractor, other) · Auto-calculated totals · Site photo upload |
 | **Reports** | 5-tab layout: Cost Trends · Analytics · DPR Table · Photo Gallery · Stage Progress · CSV and PDF export |
 | **Materials** | Inventory cards with low-stock pulse alerts · Usage/purchase history · Stock auto-updated via database triggers |
 | **Financials** | Budget vs. Actual bar charts · Cost category donut · Monthly spend trends · Per-project financial breakdown |
-| **Labour Register** | Category-based labour tracking (unskilled → supervisor) · Daily headcount trends |
-| **AI Assistant** | Context-aware project Q&A powered by LLM integration |
+| **Labour Register** | Category-based tracking (unskilled → supervisor) · Daily headcount trends · Bulk attendance entry |
+| **Site Issues** | Field problem logging with AI classification (material delay, equipment failure, weather disruption, etc.) |
+| **AI Assistant** | Context-aware project Q&A powered by Groq (Llama 3.3). Responds in English or Hindi. |
 | **User Management** | Role-based access (Admin, PM, Engineer, Accountant, Viewer) · Project-level assignments · Invite system |
 
 ---
 
 ## Tech Stack
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  FRONTEND                                               │
-│  React 18 · Vite 5 · Recharts · Lucide Icons            │
-│  Custom CSS design system (no framework)                 │
-├─────────────────────────────────────────────────────────┤
-│  BACKEND                                                │
-│  Supabase (PostgreSQL 17)                               │
-│  ├── Row Level Security on every table                  │
-│  ├── Database triggers (auto-compute totals, stock)     │
-│  ├── Generated columns (DPR total_cost)                 │
-│  ├── Auth with email/password                           │
-│  └── Storage buckets (site photos, 10MB limit)          │
-├─────────────────────────────────────────────────────────┤
-│  DEPLOYMENT                                             │
-│  Vercel (auto-deploy on push) · Region: ap-south-1      │
-└─────────────────────────────────────────────────────────┘
-```
+| Layer | Choice | Reason |
+|-------|--------|--------|
+| Frontend | React 18 + Vite 5 | Fast builds; no framework overhead |
+| Charts | Recharts | Works cleanly with React without a heavy D3 setup |
+| Icons | Lucide React | Consistent, tree-shakeable icon set |
+| Backend | Supabase (PostgreSQL 17) | Row-level security, realtime, storage, and auth in one service |
+| Styling | Custom CSS + Tailwind (landing page only) | Full control over the app design system; Tailwind for the marketing page |
+| Deployment | Vercel | Auto-deploys on push; India region (`ap-south-1`) |
+| AI | Groq (Llama 3.3) via Supabase Edge Function | Fast inference for the assistant and issue classification |
+| Maps | Leaflet + Esri World Imagery | Satellite view for site location with drag-to-pin |
 
 ---
 
-## Database Architecture
+## Database Design
 
-12 tables with full Row Level Security. All RLS policies use `(SELECT auth.uid())` for per-query evaluation (not per-row) to avoid performance degradation at scale.
+14 tables with full Row Level Security. Key decisions:
 
-| Table | Purpose |
-|-------|---------|
-| `projects` | Core project records with budget and GPS |
-| `daily_reports` | DPR submissions — `total_cost` is a `GENERATED ALWAYS` column |
-| `dpr_photos` | Photo metadata linked to reports and projects |
-| `materials` | Inventory master list with stock levels |
-| `material_usage` | Usage log — auto-decrements stock via trigger |
-| `material_purchases` | Procurement log — auto-increments stock via trigger |
-| `user_roles` | RBAC role definitions (Admin, PM, Engineer, Accountant) |
-| `user_project_assignments` | User ↔ Project ↔ Role junction table |
-| `notifications` | Per-user notification inbox |
-| `project_stage_progress` | Stage completion tracking per project |
-| `floors` | Lookup table (replaces free-text) |
-| `stages` | Lookup table (replaces free-text) |
+- **`daily_reports.total_cost` is a `GENERATED ALWAYS` column** — computed by PostgreSQL from the five cost breakdown fields. The total can never drift between the DPR form, the dashboard, and the financial reports.
+- **All RLS policies use `(SELECT auth.uid())`** — evaluated once per query, not once per row. This matters at scale when a table has thousands of DPR records.
+- **Stock levels are maintained by triggers** — `material_usage` decrements stock, `material_purchases` increments it. Application state can never corrupt inventory figures.
+
+Full schema documentation: [`supabase/README.md`](supabase/README.md)
 
 ---
 
-## Getting Started
+## Setup
 
-### Prerequisites
-
-- Node.js 18+
-- A [Supabase](https://supabase.com) project with the schema applied (see `supabase/` for migration files)
-
-### Installation
+**Prerequisites:** Node.js 18+, a [Supabase](https://supabase.com) project with the schema applied.
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone https://github.com/tarunrwt/buildtrack.git
 cd buildtrack
 
-# Install dependencies
+# 2. Install dependencies
 npm install
 
-# Configure environment
+# 3. Configure environment variables
 cp .env.example .env
-# Edit .env with your Supabase credentials:
-#   VITE_SUPABASE_URL=https://your-project.supabase.co
-#   VITE_SUPABASE_ANON_KEY=your-anon-key
+# Edit .env and add your Supabase project URL and anon key
 
-# Start development server
+# 4. Start the development server
 npm run dev
+# App runs at http://localhost:5173
 ```
 
-The app starts at `http://localhost:5173`.
+**Build for production:**
+
+```bash
+npm run build   # Output in dist/
+npm run preview # Preview the production build locally
+```
 
 ### Database Setup
 
-Apply the migrations in `supabase/` in numeric order against your Supabase project using the SQL editor or Supabase CLI:
+The schema is documented in [`supabase/README.md`](supabase/README.md). To set up your own instance, create a Supabase project and apply the schema using the SQL Editor. Contact the author for the migration files.
 
-```
-supabase/006_add_site_issues.sql
-supabase/007_add_labourer_attendance.sql
-supabase/008_add_viewer_accountant_roles.sql
-```
+---
 
-### Build for Production
+## Environment Variables
 
-```bash
-npm run build    # Output in dist/
-npm run preview  # Preview production build locally
-```
+| Variable | Where to find it |
+|----------|-----------------|
+| `VITE_SUPABASE_URL` | Supabase Dashboard → Project Settings → API → Project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase Dashboard → Project Settings → API → anon public key |
+
+The `.env` file is gitignored. Never commit it.
 
 ---
 
@@ -170,34 +136,33 @@ npm run preview  # Preview production build locally
 
 ```
 buildtrack/
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # Lint + build check on every push
 ├── public/
-│   └── favicon.svg             # Brand favicon
-├── index.html                  # Entry point with full SEO meta tags
-├── vite.config.js              # Vite configuration with @/ path alias
-├── tailwind.config.js          # Tailwind CSS (used by landing page)
-├── package.json
-├── .env.example                # Environment variable template (safe to commit)
-├── LICENSE                     # MIT
+│   └── favicon.svg
 ├── src/
-│   ├── main.jsx                # React root mount
 │   ├── App.jsx                 # All app pages, components, and routing
+│   ├── main.jsx                # React root mount
 │   ├── landing/
-│   │   ├── Landing.jsx         # Public-facing marketing landing page
-│   │   └── landing.css         # Landing page styles (Tailwind + custom animations)
+│   │   ├── Landing.jsx         # Public-facing marketing page
+│   │   └── landing.css         # Landing page styles
 │   └── lib/
-│       ├── supabase.js             # Supabase client initialisation
-│       ├── financialEngine.ts      # Single source of truth — all financial calcs
-│       └── reportEngine.ts         # Single source of truth — report aggregations
+│       ├── supabase.js         # Supabase client initialisation
+│       ├── financialEngine.ts  # Single source of truth — all financial calculations
+│       └── reportEngine.ts     # Single source of truth — report aggregations
 ├── supabase/
-│   ├── migrations/
-│   │   ├── README.md                        # Schema reference and migration guide
-│   │   ├── 006_add_site_issues.sql          # Site issue tracking with AI categories
-│   │   ├── 007_add_labourer_attendance.sql  # Daily headcount by labour category
-│   │   └── 008_add_viewer_accountant_roles.sql # Extended RBAC roles
-│   └── seed/
-│       └── dev_seed.sql        # Development seed data (gitignored — never commit)
-└── docs/
-    └── screenshots/            # App screenshots for documentation
+│   └── README.md               # Database schema reference
+├── docs/
+│   └── screenshots/            # App screenshots for documentation
+├── .env.example                # Environment variable template
+├── .eslintrc.cjs               # ESLint configuration
+├── .prettierrc                 # Prettier formatting rules
+├── index.html                  # Entry point with SEO meta tags
+├── LICENSE                     # MIT
+├── package.json
+├── tailwind.config.js
+└── vite.config.js
 ```
 
 ---
@@ -205,38 +170,46 @@ buildtrack/
 ## Architecture Decisions
 
 | Decision | Rationale |
-|----------|-----------|
-| **Single-file React app** | MVP-phase simplicity — all pages and components in `App.jsx` with clear section headers. Production refactor would split by feature module. |
-| **No CSS framework** | Full control over the industrial design language (dark navy sidebar, construction-orange accents, Barlow typeface). |
-| **Generated columns over app-side calc** | `daily_reports.total_cost` is computed by PostgreSQL — self-healing, tamper-proof, zero client-side drift. |
-| **Centralised financial engine** | `financialEngine.ts` eliminates dual computation paths. Dashboard, Reports, and Financials all show identical numbers. |
-| **Centralised report engine** | `reportEngine.ts` provides exact-match stage counts and manpower trends — no fuzzy string matching. |
+|----------|-----------| 
+| **Single-file React app** | MVP-phase simplicity — all pages and components in `App.jsx` with clear section headers. A feature-based folder split is on the roadmap. |
+| **No CSS framework (in the app)** | Full control over the design language — dark navy sidebar, construction-orange accents, Barlow typeface. Tailwind is used only on the marketing landing page. |
+| **Generated columns over app-side calculation** | `daily_reports.total_cost` is computed by PostgreSQL — self-healing, tamper-proof, zero client-side drift. |
+| **Centralised financial engine** | `financialEngine.ts` means the dashboard, reports, and financials pages all show identical numbers. No dual computation paths. |
 | **RLS with `(SELECT auth.uid())`** | Evaluated once per query, not once per row. Critical for tables with thousands of DPR records. |
 
 ---
 
 ## Roadmap
 
-- [ ] **Error Boundary** — Wrap main content to prevent blank-screen crashes on uncaught exceptions
-- [ ] **Realtime subscriptions** — Live updates via Supabase Realtime on DPRs and projects
-- [ ] **Offline-first DPR** — Service worker for field submission without connectivity
-- [ ] **Mobile app** — React Native wrapper for site engineers
-- [ ] **PDF reports** — Server-side PDF generation with embedded charts
-- [ ] **Multi-tenant** — Organisation-level isolation for construction firms
+- [ ] Split `App.jsx` into feature modules (`features/projects`, `features/labour`, etc.)
+- [ ] Error boundaries to prevent blank-screen crashes on uncaught exceptions
+- [ ] Realtime DPR updates via Supabase Realtime subscriptions
+- [ ] Offline-first DPR submission with a service worker
+- [ ] React Native mobile app for site engineers
+- [ ] Server-side PDF generation with embedded charts
+- [ ] Multi-tenant organisation isolation
+
+---
+
+## A note on how this was built
+
+I used Claude (Anthropic) as a collaborator throughout this project — for code review, architectural decisions, and debugging. Every line in this repository was read, understood, and deliberately chosen by me. The AI helped me move faster and think through edge cases I would have otherwise missed.
+
+I'm mentioning this because hiding AI involvement in portfolio projects is dishonest. The construction domain knowledge, the product decisions, the database design, and the final code are mine. The AI was a tool, not the author.
+
+---
+
+## Author
+
+**Tarun Rawat** — CS Diploma student, ML and Gen AI enthusiast, former NCC Cadet.
+
+[![GitHub](https://img.shields.io/badge/GitHub-tarunrwt-181717?style=flat-square&logo=github)](https://github.com/tarunrwt)
 
 ---
 
 ## License
 
 Distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
-
----
-
-## Author
-
-**Tarun Rawat**
-
-[![GitHub](https://img.shields.io/badge/GitHub-tarunrwt-181717?style=flat-square&logo=github)](https://github.com/tarunrwt)
 
 ---
 
