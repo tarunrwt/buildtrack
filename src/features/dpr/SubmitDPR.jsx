@@ -5,9 +5,9 @@ import { WEATHER_OPTIONS, FLOORS, STAGES_BY_FLOOR } from "../../constants/dropdo
 import { Input, Select, Btn } from "../../components"
 import { TopBar } from "../../layout/TopBar"
 import { fmt } from "../../utils/formatters"
-import { CheckCircle, Camera, Plus, X } from "lucide-react"
+import { CheckCircle, Camera, Plus, X, AlertTriangle } from "lucide-react"
 
-export const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAllRead }) => {
+export const SubmitDPR = ({ user, projects, setReports, setProjects, notifications, onMarkAllRead }) => {
   const today = new Date().toISOString().split("T")[0]
   const [form, setForm] = useState({
     project_id: "", report_date: today, weather: "", floor: "", stage: "",
@@ -26,6 +26,15 @@ export const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAll
     .reduce((s, k) => s + (parseFloat(form[k]) || 0), 0)
 
   const stages = form.floor ? STAGES_BY_FLOOR[form.floor] || [] : []
+
+  // Budget overrun detection
+  const selectedProject = projects.find(p => p.id === form.project_id)
+  const projectBudget   = selectedProject?.total_cost || 0
+  const projectSpent    = selectedProject?.total_spent || 0
+  const remainingBudget = projectBudget - projectSpent
+  const wouldExceed     = projectBudget > 0 && liveTotal > remainingBudget
+  const newTotalSpent   = projectSpent + liveTotal
+  const newPct          = projectBudget > 0 ? Math.round((newTotalSpent / projectBudget) * 100) : 0
 
   const handleSubmit = async () => {
     setError("")
@@ -81,6 +90,13 @@ export const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAll
     setReports(rs => [data, ...rs])
     setSubmittedReport(data)
     setSaving(false)
+
+    // Refresh project data so Dashboard/Financials reflect the new spend
+    if (setProjects) {
+      const { data: freshProjects } = await supabase
+        .from("projects").select("*").order("created_at", { ascending: false })
+      if (freshProjects) setProjects(freshProjects)
+    }
   }
 
   const handleReset = () => {
@@ -142,8 +158,29 @@ export const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAll
           </div>
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
             <span style={{ fontFamily: FONT, fontSize: 14, color: C.textMuted, fontWeight: 600 }}>Total Cost Today:</span>
-            <span style={{ fontFamily: FONT_HEADING, fontSize: 24, fontWeight: 800, color: C.accent }}>{fmt(liveTotal)}</span>
+            <span style={{ fontFamily: FONT_HEADING, fontSize: 24, fontWeight: 800, color: wouldExceed ? C.danger : C.accent }}>{fmt(liveTotal)}</span>
           </div>
+
+          {/* Budget overrun warning */}
+          {selectedProject && projectBudget > 0 && liveTotal > 0 && (
+            <div style={{
+              marginTop: 16, padding: "14px 18px", borderRadius: 10,
+              background: wouldExceed ? "#FEF2F2" : "#F0FDF4",
+              border: `1px solid ${wouldExceed ? "#FECACA" : "#BBF7D0"}`,
+              display: "flex", alignItems: "flex-start", gap: 12,
+            }}>
+              <AlertTriangle size={18} color={wouldExceed ? C.danger : C.success} style={{ marginTop: 2, flexShrink: 0 }} />
+              <div>
+                <p style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: wouldExceed ? C.danger : C.success, margin: "0 0 4px" }}>
+                  {wouldExceed ? `⚠ Budget Overrun — This entry will exceed the project budget by ${fmt(liveTotal - remainingBudget)}` : "✓ Within Budget"}
+                </p>
+                <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0, lineHeight: 1.5 }}>
+                  <strong>{selectedProject.name}</strong> — Budget: {fmt(projectBudget)} · Already Spent: {fmt(projectSpent)} · Remaining: {fmt(remainingBudget)}
+                  {wouldExceed && <><br/>After this entry: {fmt(newTotalSpent)} ({newPct}% of budget)</>}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Site photos */}
@@ -192,7 +229,7 @@ export const SubmitDPR = ({ user, projects, setReports, notifications, onMarkAll
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontFamily: FONT, fontSize: 13, color: C.textMuted, fontWeight: 600 }}>Total:</span>
-            <span style={{ fontFamily: FONT_HEADING, fontSize: 22, fontWeight: 800, color: C.accent }}>{fmt(liveTotal)}</span>
+            <span style={{ fontFamily: FONT_HEADING, fontSize: 22, fontWeight: 800, color: wouldExceed ? C.danger : C.accent }}>{fmt(liveTotal)}</span>
           </div>
           <Btn onClick={handleSubmit} disabled={saving || photoUploading} size="lg" icon={CheckCircle}>
             {photoUploading ? "Uploading..." : saving ? "Submitting..." : "Submit Report"}

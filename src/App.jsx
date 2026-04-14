@@ -157,8 +157,8 @@ export default function App() {
   const PAGES = {
     dashboard:        <Dashboard     user={user} setPage={setPage} projects={visibleProjects} reports={reports} />,
     projects:         <Projects      user={user} projects={visibleProjects} setProjects={setProjects} onCardClick={handleCardClick} {...sharedProps} />,
-    "submit-dpr":     <SubmitDPR     user={user} projects={visibleProjects} setReports={setReports} {...sharedProps} />,
-    labour:           <LabourRegister user={user} projects={visibleProjects} {...sharedProps} />,
+    "submit-dpr":     <SubmitDPR     user={user} projects={visibleProjects} setReports={setReports} setProjects={setProjects} {...sharedProps} />,
+    labour:           <LabourRegister user={user} userRole={userRole} projects={visibleProjects} {...sharedProps} />,
     reports:          <Reports       user={user} userRole={userRole} projects={visibleProjects} reports={reports} {...sharedProps} />,
     materials:        <Materials     user={user} projects={visibleProjects} {...sharedProps} />,
     financials:       <Financials    projects={visibleProjects} reports={reports} {...sharedProps} />,

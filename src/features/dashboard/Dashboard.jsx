@@ -8,6 +8,7 @@ export const Dashboard = ({ user, setPage, projects, reports }) => {
   const totalBudget = projects.reduce((s, p) => s + (p.total_cost  || 0), 0)
   const totalSpent  = projects.reduce((s, p) => s + (p.total_spent || 0), 0)
   const delayed     = projects.filter(p => p.status === "delayed").length
+  const overrunProjects = projects.filter(p => p.total_cost > 0 && (p.total_spent || 0) > p.total_cost)
 
   const quickActions = [
     { label: "New Project",   icon: FolderOpen, page: "projects",     bg: C.info    },
@@ -38,10 +39,30 @@ export const Dashboard = ({ user, setPage, projects, reports }) => {
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 28 }}>
         <KPICard label="Total Projects" value={projects.length}       sub="in your account"         icon={FolderOpen}    accent={C.info}    />
         <KPICard label="Total Budget"   value={fmt(totalBudget)}      sub="across all projects"     icon={DollarSign}    accent={C.success}  />
-        <KPICard label="Total Spent"    value={fmt(totalSpent)}        sub={`${totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0}% of budget`} icon={TrendingUp} accent={C.accent} />
+        <KPICard label="Total Spent"    value={fmt(totalSpent)}        sub={`${totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0}% of budget`} icon={TrendingUp} accent={totalSpent > totalBudget && totalBudget > 0 ? C.danger : C.accent} />
         <KPICard label="Total Reports"  value={reports.length}         sub="DPRs submitted"          icon={FileText}      accent={C.warning}  />
         <KPICard label="Delayed"        value={delayed}                sub="projects behind schedule" icon={AlertTriangle} accent={C.danger}   />
       </div>
+
+      {/* Budget overrun alerts */}
+      {overrunProjects.length > 0 && (
+        <div style={{
+          background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12,
+          padding: "16px 20px", marginBottom: 24, display: "flex", alignItems: "flex-start", gap: 12
+        }}>
+          <AlertTriangle size={20} color={C.danger} style={{ marginTop: 2, flexShrink: 0 }} />
+          <div>
+            <p style={{ fontFamily: FONT_HEADING, fontSize: 14, fontWeight: 700, color: C.danger, margin: "0 0 6px" }}>
+              Budget Overrun Detected
+            </p>
+            {overrunProjects.map(p => (
+              <p key={p.id} style={{ fontFamily: FONT, fontSize: 12, color: C.text, margin: "4px 0", lineHeight: 1.5 }}>
+                <strong>{p.name}</strong> — Spent {fmt(p.total_spent)} of {fmt(p.total_cost)} budget ({Math.round(((p.total_spent || 0) / p.total_cost) * 100)}%) · Over by <strong style={{ color: C.danger }}>{fmt((p.total_spent || 0) - p.total_cost)}</strong>
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick actions */}
       <div>

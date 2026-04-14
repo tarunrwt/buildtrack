@@ -38,7 +38,7 @@ const isDateAllowed = (dateStr) => {
   return dateStr === today || dateStr === yesterday
 }
 
-const BulkEntryTab = ({ user, projects }) => {
+const BulkEntryTab = ({ user, projects, userRole }) => {
   const today = new Date().toISOString().split("T")[0]
   const [form, setForm] = useState({
     project_id: "", attendance_date: today, category: "unskilled",
@@ -95,6 +95,12 @@ const BulkEntryTab = ({ user, projects }) => {
   const totalWorkers = records.reduce((s, r) => s + (r.worker_count || 0), 0)
   const categoryLabel = val => CATEGORY_OPTIONS.find(c => c.value === val)?.label || val
 
+  const deleteRecord = async (id) => {
+    if (!confirm("Are you sure you want to delete this attendance entry?")) return
+    await supabase.from("labour_attendance").delete().eq("id", id)
+    loadRecords()
+  }
+
   return (
     <>
       <div style={{ background: C.card, borderRadius: 16, padding: 28, marginTop: 20, border: `1px solid ${C.border}` }}>
@@ -139,7 +145,7 @@ const BulkEntryTab = ({ user, projects }) => {
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT, fontSize: 13 }}>
                 <thead><tr style={{ background: "#F8FAFC" }}>
-                  {["Category","Trade","Workers","Hours","Rate / Day","Total Wage","Remarks"].map(h => (
+                  {["Category","Trade","Workers","Hours","Rate / Day","Total Wage","Remarks", ...(userRole === "admin" ? ["Action"] : [])].map(h => (
                     <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.charcoal, borderBottom: `2px solid ${C.border}` }}>{h}</th>
                   ))}
                 </tr></thead>
@@ -152,6 +158,11 @@ const BulkEntryTab = ({ user, projects }) => {
                     <td style={{ padding: "10px 14px", color: C.text }}>₹{parseFloat(r.daily_wage_rate).toLocaleString("en-IN")}</td>
                     <td style={{ padding: "10px 14px", fontWeight: 700, color: C.accent }}>{fmt(parseFloat(r.total_wage))}</td>
                     <td style={{ padding: "10px 14px", color: C.textMuted }}>{r.remarks || "—"}</td>
+                    {userRole === "admin" && (
+                      <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                        <button onClick={() => deleteRecord(r.id)} style={{ background: "none", border: "none", color: C.danger, cursor: "pointer", fontWeight: 600, fontSize: 12 }}>Delete</button>
+                      </td>
+                    )}
                   </tr>
                 ))}</tbody>
                 <tfoot><tr style={{ background: "#F8FAFC", borderTop: `2px solid ${C.border}` }}>
@@ -159,6 +170,7 @@ const BulkEntryTab = ({ user, projects }) => {
                   <td style={{ padding: "12px 14px", fontWeight: 700, textAlign: "center", color: C.text }}>{totalWorkers}</td>
                   <td colSpan={2} />
                   <td style={{ padding: "12px 14px", fontFamily: FONT_HEADING, fontSize: 18, fontWeight: 800, color: C.accent }}>{fmt(totalDayWage)}</td>
+                  {userRole === "admin" && <td />}
                   <td />
                 </tr></tfoot>
               </table>
@@ -754,7 +766,7 @@ const AttendanceReportTab = ({ projects }) => {
 
 // ── Main LabourRegister with Tabs ────────────────────────────────────────────
 
-export const LabourRegister = ({ user, projects, notifications, onMarkAllRead }) => {
+export const LabourRegister = ({ user, userRole, projects, notifications, onMarkAllRead }) => {
   const [activeTab, setActiveTab] = useState("bulk")
 
   const hasProjects = (projects || []).length > 0
@@ -799,7 +811,7 @@ export const LabourRegister = ({ user, projects, notifications, onMarkAllRead })
           </div>
 
           {/* Tab Content */}
-          {activeTab === "bulk"   && <BulkEntryTab user={user} projects={projects} />}
+          {activeTab === "bulk"   && <BulkEntryTab user={user} projects={projects} userRole={userRole} />}
           {activeTab === "manage" && <ManageWorkersTab user={user} projects={projects} />}
           {activeTab === "mark"   && <MarkAttendanceTab user={user} projects={projects} />}
           {activeTab === "report" && <AttendanceReportTab projects={projects} />}
