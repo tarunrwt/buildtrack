@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect } from "react"
 import { supabase } from "../../lib/supabase"
 import { FONT, FONT_HEADING, C } from "../../constants/colors"
 import { Btn } from "../../components"
@@ -16,7 +16,7 @@ const buildAgentContext = (projects, reports, materials = [], issues = []) => {
     const remaining = (p.total_cost || 0) - (p.total_spent || 0)
     lines.push(`Project: ${p.name}`)
     lines.push(`  Status: ${p.status} | Start: ${p.start_date || "N/A"} | Due: ${p.target_end_date || "N/A"}`)
-    lines.push(`  Budget: Γé╣${(p.total_cost || 0).toLocaleString("en-IN")} | Spent: Γé╣${(p.total_spent || 0).toLocaleString("en-IN")} | Remaining: Γé╣${remaining.toLocaleString("en-IN")} (${pct}% used)`)
+    lines.push(`  Budget: ₹${(p.total_cost || 0).toLocaleString("en-IN")} | Spent: ₹${(p.total_spent || 0).toLocaleString("en-IN")} | Remaining: ₹${remaining.toLocaleString("en-IN")} (${pct}% used)`)
     if (p.area_of_site) lines.push(`  Site Area: ${p.area_of_site} sqft`)
     lines.push("")
   })
@@ -24,14 +24,14 @@ const buildAgentContext = (projects, reports, materials = [], issues = []) => {
   if (reports?.length) {
     lines.push("=== RECENT DAILY PROGRESS REPORTS (last 30) ===")
     reports.slice(0, 30).forEach(r => {
-      lines.push(`${r.report_date} | ${r.projects?.name || "Unknown Project"} | Floor: ${r.floor} | Stage: ${r.stage} | Manpower: ${r.manpower_count || 0} | Cost: Γé╣${(r.total_cost || 0).toLocaleString("en-IN")}`)
+      lines.push(`${r.report_date} | ${r.projects?.name || "Unknown Project"} | Floor: ${r.floor} | Stage: ${r.stage} | Manpower: ${r.manpower_count || 0} | Cost: ₹${(r.total_cost || 0).toLocaleString("en-IN")}`)
     })
     lines.push("")
     lines.push("=== REPORTING ACTIVITY (last 7 days) ===")
     const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
     projects.forEach(p => {
       const recentCount = reports.filter(r => r.project_id === p.id && new Date(r.report_date) >= sevenDaysAgo).length
-      lines.push(`${p.name}: ${recentCount} DPR(s) in last 7 days${recentCount === 0 ? " ΓÜá NO RECENT REPORTS" : ""}`)
+      lines.push(`${p.name}: ${recentCount} DPR(s) in last 7 days${recentCount === 0 ? " ⚠ NO RECENT REPORTS" : ""}`)
     })
     lines.push("")
   }
@@ -39,7 +39,7 @@ const buildAgentContext = (projects, reports, materials = [], issues = []) => {
   if (materials?.length) {
     lines.push("=== MATERIAL STOCK ===")
     materials.forEach(m => {
-      const alert = m.current_stock <= m.min_stock_level ? " ΓÜá LOW STOCK" : ""
+      const alert = m.current_stock <= m.min_stock_level ? " ⚠ LOW STOCK" : ""
       lines.push(`${m.name} (${m.category}): ${m.current_stock} ${m.unit} remaining | Min threshold: ${m.min_stock_level}${alert}`)
     })
     lines.push("")
@@ -49,12 +49,12 @@ const buildAgentContext = (projects, reports, materials = [], issues = []) => {
   const risks = []
   projects.forEach(p => {
     const pct = p.total_cost > 0 ? Math.round(((p.total_spent || 0) / p.total_cost) * 100) : 0
-    if (pct >= 90)  risks.push(`BUDGET RISK: ${p.name} has used ${pct}% of budget (Γé╣${(p.total_spent || 0).toLocaleString("en-IN")} of Γé╣${(p.total_cost || 0).toLocaleString("en-IN")})`)
-    if (pct > 100)  risks.push(`BUDGET OVERRUN: ${p.name} has exceeded budget by Γé╣${((p.total_spent || 0) - (p.total_cost || 0)).toLocaleString("en-IN")}`)
+    if (pct >= 90)  risks.push(`BUDGET RISK: ${p.name} has used ${pct}% of budget (₹${(p.total_spent || 0).toLocaleString("en-IN")} of ₹${(p.total_cost || 0).toLocaleString("en-IN")})`)
+    if (pct > 100)  risks.push(`BUDGET OVERRUN: ${p.name} has exceeded budget by ₹${((p.total_spent || 0) - (p.total_cost || 0)).toLocaleString("en-IN")}`)
   })
   materials?.forEach(m => {
     if (m.current_stock <= m.min_stock_level)
-      risks.push(`LOW STOCK: ${m.name} ΓÇö only ${m.current_stock} ${m.unit} left (min: ${m.min_stock_level})`)
+      risks.push(`LOW STOCK: ${m.name} — only ${m.current_stock} ${m.unit} left (min: ${m.min_stock_level})`)
   })
   if (risks.length === 0) risks.push("No critical risks detected at this time.")
   risks.forEach(r => lines.push(r))
@@ -74,20 +74,16 @@ const buildAgentContext = (projects, reports, materials = [], issues = []) => {
   return lines.join("\n")
 }
 
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-// PAGE ΓÇö AI Assistant
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-
 const QUICK_ACTIONS = [
-  { label: "≡ƒôè Summarise all projects",       prompt: "Give me a concise summary of all my projects ΓÇö current status, budget health, and key progress points." },
-  { label: "ΓÜá∩╕Å Flag risks",                   prompt: "Scan all my project data and flag any risks ΓÇö budget overruns, low material stock, projects with no recent DPRs, or anything else that needs attention." },
-  { label: "≡ƒôà What needs attention this week?", prompt: "Based on my current project data, what are the top 3ΓÇô5 things I should focus on this week?" },
+  { label: "📈 Summarise all projects",        prompt: "Give me a concise summary of all my projects — current status, budget health, and key progress points." },
+  { label: "⚠️ Flag risks",                    prompt: "Scan all my project data and flag any risks — budget overruns, low material stock, projects with no recent DPRs, or anything else that needs attention." },
+  { label: "📋 What needs attention this week?", prompt: "Based on my current project data, what are the top 3–5 things I should focus on this week?" },
 ]
 
 export const AIAssistant = ({ projects, reports, materials, issues, notifications, onMarkAllRead }) => {
   const [messages, setMessages] = useState([{
     role: "assistant",
-    content: `≡ƒæ╖ **BuildTrack AI Assistant** is ready.\n\nI have access to all your project data ΓÇö budgets, daily reports, materials, and stage progress. Ask me anything about your projects, or use the quick actions below.\n\nYou can write in English or Hindi ΓÇö I'll respond in the same language.`
+    content: `🤖 **BuildTrack AI Assistant** is ready.\n\nI have access to all your project data — budgets, daily reports, materials, and stage progress. Ask me anything about your projects, or use the quick actions below.\n\nYou can write in English or Hindi — I'll respond in the same language.`
   }])
   const [input,   setInput]   = useState("")
   const [loading, setLoading] = useState(false)
@@ -124,7 +120,6 @@ export const AIAssistant = ({ projects, reports, materials, issues, notification
     setLoading(false)
   }
 
-  /** Converts minimal markdown (bold) and newlines to safe HTML for dangerouslySetInnerHTML. */
   const renderContent = text =>
     text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br/>")
 
@@ -136,10 +131,10 @@ export const AIAssistant = ({ projects, reports, materials, issues, notification
           <div style={{ background: C.accent, borderRadius: 10, padding: 8, display: "flex" }}><Bot size={20} color="#fff" /></div>
           <div>
             <h2 style={{ fontFamily: FONT_HEADING, fontSize: 20, fontWeight: 800, color: C.text, margin: 0 }}>AI Assistant</h2>
-            <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0 }}>Powered by Llama 3.3 via Groq ┬╖ {projects?.length || 0} projects in context</p>
+            <p style={{ fontFamily: FONT, fontSize: 12, color: C.textMuted, margin: 0 }}>Powered by Llama 3.3 via Groq · {projects?.length || 0} projects in context</p>
           </div>
         </div>
-        <button onClick={() => setMessages([{ role: "assistant", content: "≡ƒæ╖ **BuildTrack AI Assistant** is ready.\n\nI have access to all your project data. Ask me anything or use the quick actions below.\n\nYou can write in English or Hindi." }])}
+        <button onClick={() => setMessages([{ role: "assistant", content: "🤖 **BuildTrack AI Assistant** is ready.\n\nI have access to all your project data. Ask me anything or use the quick actions below.\n\nYou can write in English or Hindi." }])}
           style={{ background: "#F1F5F9", border: "none", borderRadius: 8, padding: "7px 14px", fontFamily: FONT, fontSize: 12, color: C.textMuted, cursor: "pointer", fontWeight: 600 }}>
           Clear chat
         </button>
@@ -197,7 +192,7 @@ export const AIAssistant = ({ projects, reports, materials, issues, notification
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
           <textarea value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-            placeholder="Ask about your projects, request a summary, or flag risksΓÇª (Enter to send, Shift+Enter for new line)"
+            placeholder="Ask about your projects, request a summary, or flag risks… (Enter to send, Shift+Enter for new line)"
             rows={2} disabled={loading}
             style={{ flex: 1, fontFamily: FONT, fontSize: 13, color: C.text, background: "#F8FAFC", border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 14px", resize: "none", outline: "none", lineHeight: 1.5, opacity: loading ? 0.6 : 1 }}
           />
@@ -207,13 +202,9 @@ export const AIAssistant = ({ projects, reports, materials, issues, notification
           </button>
         </div>
         <p style={{ fontFamily: FONT, fontSize: 11, color: C.textLight, margin: "6px 0 0" }}>
-          Press Enter to send ┬╖ Shift+Enter for new line ┬╖ Responds in English or Hindi
+          Press Enter to send · Shift+Enter for new line · Responds in English or Hindi
         </p>
       </div>
     </div>
   )
 }
-
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-// PROFILE MODAL
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
